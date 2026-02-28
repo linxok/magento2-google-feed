@@ -1,0 +1,194 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system.xsd">
+    <system>
+        <tab id="mycompany" translate="label" sortOrder="300">
+            <label>MyCompany</label>
+        </tab>
+        <section id="googlefeed" translate="label" type="text" sortOrder="100" showInDefault="1" showInWebsite="1" showInStore="1">
+            <class>separator-top</class>
+            <label>Google Feed</label>
+            <tab>mycompany</tab>
+            <resource>MyCompany_GoogleFeed::config</resource>
+            <group id="general" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>General Settings</label>
+                <field id="feed_url" translate="label" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Feed URL</label>
+                    <frontend_model>MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\FeedUrl</frontend_model>
+                    <comment>Use this URL to access your Google Shopping feed or submit to Google Merchant Center</comment>
+                </field>
+                <field id="enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Google Feed</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="title" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Feed Title</label>
+                    <validate>required-entry</validate>
+                </field>
+                <field id="description" translate="label" type="textarea" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Feed Description</label>
+                </field>
+                <field id="enable_auth" translate="label" type="select" sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable HTTP Basic Authentication</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Enable HTTP Basic Authentication for feed access. Disable if Google shows "Authentication failed" error.</comment>
+                </field>
+                <field id="auth_username" translate="label" type="text" sortOrder="36" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Authentication Username</label>
+                    <comment>Username for HTTP Basic Authentication</comment>
+                    <depends>
+                        <field id="enable_auth">1</field>
+                    </depends>
+                </field>
+                <field id="auth_password" translate="label" type="obscure" sortOrder="37" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Authentication Password</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>Password for HTTP Basic Authentication</comment>
+                    <depends>
+                        <field id="enable_auth">1</field>
+                    </depends>
+                </field>
+            </group>
+            <group id="feed" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Feed Settings</label>
+                <field id="limit" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Products Limit</label>
+                    <validate>required-entry validate-number validate-digits validate-greater-than-zero</validate>
+                    <comment>Maximum number of products to include in feed</comment>
+                </field>
+                <field id="include_out_of_stock" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Include Out of Stock Products</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="image_size" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Image Size</label>
+                    <validate>required-entry validate-number validate-digits validate-greater-than-zero</validate>
+                    <comment>Image size in pixels (width and height)</comment>
+                </field>
+                <field id="currency" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Feed Currency</label>
+                    <source_model>Magento\Config\Model\Config\Source\Locale\Currency</source_model>
+                    <comment>Select currency for feed prices. Leave empty to automatically use store's base currency.</comment>
+                </field>
+                <field id="condition" translate="label" type="select" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Default Product Condition</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\Condition</source_model>
+                    <comment>Default condition for all products</comment>
+                </field>
+            </group>
+            <group id="filters" translate="label" type="text" sortOrder="25" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Product Filters</label>
+                <field id="category_ids" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                    <label>Include Categories</label>
+                    <frontend_model>MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\CategoryTree</frontend_model>
+                    <comment>Select categories to include in feed. Check parent category to select all children. Click "Use Website" or "Use Default" checkbox to inherit values from parent scope.</comment>
+                </field>
+                <field id="min_price" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Minimum Price</label>
+                    <validate>validate-number validate-zero-or-greater</validate>
+                    <comment>Exclude products below this price</comment>
+                </field>
+                <field id="max_price" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Maximum Price</label>
+                    <validate>validate-number validate-zero-or-greater</validate>
+                    <comment>Exclude products above this price</comment>
+                </field>
+                <field id="exclude_categories" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Exclude Categories</label>
+                    <frontend_model>MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\CategoryTree</frontend_model>
+                    <comment>Categories to exclude from feed. Check parent category to exclude all children.</comment>
+                </field>
+            </group>
+            <group id="attributes" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Product Attributes Mapping</label>
+                <field id="brand_attribute" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Brand Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for brand (e.g., brand, manufacturer)</comment>
+                </field>
+                <field id="gtin_attribute" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>GTIN Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for GTIN (e.g., gtin, upc, ean)</comment>
+                </field>
+                <field id="mpn_attribute" translate="label" type="select" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>MPN Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for MPN (e.g., mpn, part_number)</comment>
+                </field>
+                <field id="condition_attribute" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Condition Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Attribute for product condition (overrides default). Values: new, refurbished, used</comment>
+                </field>
+                <field id="color_attribute" translate="label" type="select" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Color Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for color</comment>
+                </field>
+                <field id="size_attribute" translate="label" type="select" sortOrder="60" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Size Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for size</comment>
+                </field>
+                <field id="gender_attribute" translate="label" type="select" sortOrder="70" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Gender Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for gender (male, female, unisex)</comment>
+                </field>
+                <field id="age_group_attribute" translate="label" type="select" sortOrder="80" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Age Group Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute for age group (newborn, infant, toddler, kids, adult)</comment>
+                </field>
+                <field id="google_category_attribute" translate="label" type="select" sortOrder="90" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Google Product Category Attribute</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
+                    <comment>Select the attribute containing Google product category ID</comment>
+                </field>
+            </group>
+            <group id="cron" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Automatic Generation (Cron)</label>
+                <field id="enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Enable Automatic Generation</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Generate feed automatically via cron</comment>
+                </field>
+                <field id="frequency" translate="label" type="select" sortOrder="20" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Generation Frequency</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\Frequency</source_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="time" translate="label" type="select" sortOrder="30" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Generation Time</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\TimeOptions</source_model>
+                    <comment>Select time for daily feed generation (30-minute intervals)</comment>
+                    <validate>required-entry</validate>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="store_ids" translate="label" type="multiselect" sortOrder="35" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Generate Feeds for Stores</label>
+                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\StoreList</source_model>
+                    <comment>Select stores to generate feeds for. Each store will have its own feed file with store code suffix (e.g., feed_en.xml, feed_uk.xml). Leave empty to generate for all active stores.</comment>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+                <field id="generated_files" translate="label" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Generated Feed Files</label>
+                    <frontend_model>MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\GeneratedFiles</frontend_model>
+                    <comment>Feed files are automatically saved to pub/media/googlefeed/ with descriptive names (feed_storename_code_lang.xml)</comment>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

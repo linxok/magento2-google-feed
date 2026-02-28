@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <googlefeed>
+            <general>
+                <enabled>1</enabled>
+                <title>Google Product Feed</title>
+                <description>Generate Google Shopping product feeds</description>
+            </general>
+            <feed>
+                <limit>1000</limit>
+                <include_out_of_stock>0</include_out_of_stock>
+                <image_size>800</image_size>
+                <currency></currency>
+                <condition>new</condition>
+            </feed>
+            <filters>
+                <category_ids></category_ids>
+                <min_price></min_price>
+                <max_price></max_price>
+                <exclude_categories></exclude_categories>
+            </filters>
+            <attributes>
+                <brand_attribute></brand_attribute>
+                <gtin_attribute></gtin_attribute>
+                <mpn_attribute></mpn_attribute>
+                <condition_attribute></condition_attribute>
+                <color_attribute></color_attribute>
+                <size_attribute></size_attribute>
+                <gender_attribute></gender_attribute>
+                <age_group_attribute></age_group_attribute>
+                <google_category_attribute></google_category_attribute>
+            </attributes>
+            <cron>
+                <enabled>0</enabled>
+                <frequency>daily</frequency>
+                <time>02:00</time>
+                <file_path>googlefeed/feed.xml</file_path>
+            </cron>
+        </googlefeed>
+    </default>
+</config>

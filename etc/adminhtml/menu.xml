@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="MyCompany_GoogleFeed::googlefeed" title="Google Feed" module="MyCompany_GoogleFeed" sortOrder="50" resource="MyCompany_GoogleFeed::googlefeed" parent="Magento_Backend::marketing"/>
+        <add id="MyCompany_GoogleFeed::feed_management" title="Feed Management" module="MyCompany_GoogleFeed" sortOrder="10" resource="MyCompany_GoogleFeed::feed_view" parent="MyCompany_GoogleFeed::googlefeed" action="googlefeed/feed/index"/>
+        <add id="MyCompany_GoogleFeed::configuration" title="Configuration" module="MyCompany_GoogleFeed" sortOrder="20" resource="MyCompany_GoogleFeed::config" parent="MyCompany_GoogleFeed::googlefeed" action="adminhtml/system_config/edit/section/googlefeed"/>
+    </menu>
+</config>

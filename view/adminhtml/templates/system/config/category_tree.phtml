@@ -1,0 +1,119 @@
+<?php
+/**
+ * @var $block \MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\CategoryTree
+ */
+$categoryTree = $block->getCategoryTree();
+$selectedCategories = $block->getSelectedCategories();
+$elementName = $block->getElementName();
+$elementId = $block->getElementId();
+?>
+
+<div class="category-tree-container" id="<?= $block->escapeHtmlAttr($elementId) ?>_container">
+    <input type="hidden" 
+           name="<?= $block->escapeHtmlAttr($elementName) ?>" 
+           id="<?= $block->escapeHtmlAttr($elementId) ?>" 
+           value="<?= $block->escapeHtmlAttr(implode(',', $selectedCategories)) ?>" />
+    
+    <div class="category-tree-actions" style="margin-bottom: 10px;">
+        <button type="button" class="action-default" onclick="categoryTreeExpandAll('<?= $block->escapeJs($elementId) ?>')">
+            <?= $block->escapeHtml(__('Expand All')) ?>
+        </button>
+        <button type="button" class="action-default" onclick="categoryTreeCollapseAll('<?= $block->escapeJs($elementId) ?>')">
+            <?= $block->escapeHtml(__('Collapse All')) ?>
+        </button>
+        <button type="button" class="action-default" onclick="categoryTreeSelectAll('<?= $block->escapeJs($elementId) ?>')">
+            <?= $block->escapeHtml(__('Select All')) ?>
+        </button>
+        <button type="button" class="action-default" onclick="categoryTreeDeselectAll('<?= $block->escapeJs($elementId) ?>')">
+            <?= $block->escapeHtml(__('Deselect All')) ?>
+        </button>
+    </div>
+    
+    <div class="category-tree" style="border: 1px solid #ccc; padding: 10px; max-height: 400px; overflow-y: auto; background: #fff;">
+        <?= $block->renderCategoryTree($categoryTree, $selectedCategories, $elementId); ?>
+    </div>
+</div>
+
+<style>
+.category-tree-container .category-item {
+    margin: 2px 0;
+    padding: 2px 0;
+}
+.category-tree-container .category-children {
+    margin-left: 20px;
+    display: none;
+}
+.category-tree-container .category-children.expanded {
+    display: block;
+}
+.category-tree-container .category-toggle {
+    cursor: pointer;
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+    font-weight: bold;
+    user-select: none;
+}
+.category-tree-container .category-checkbox {
+    margin: 0 5px;
+}
+.category-tree-container .category-label {
+    cursor: pointer;
+    user-select: none;
+}
+.category-tree-container .category-item.has-children > .category-label {
+    font-weight: 500;
+}
+</style>
+
+<script>
+require(['jquery'], function($) {
+    
+    function updateHiddenInput(elementId) {
+        var selected = [];
+        $('#' + elementId + '_container .category-checkbox:checked').each(function() {
+            selected.push($(this).val());
+        });
+        $('#' + elementId).val(selected.join(','));
+    }
+    
+    window.categoryTreeToggle = function(elementId, categoryId) {
+        $('#' + elementId + '_children_' + categoryId).toggleClass('expanded');
+        var toggle = $('#' + elementId + '_toggle_' + categoryId);
+        toggle.text(toggle.text() === '+' ? '−' : '+');
+    };
+    
+    window.categoryTreeCheckboxChange = function(elementId, categoryId, checked) {
+        // Update all children
+        $('#' + elementId + '_children_' + categoryId + ' .category-checkbox').prop('checked', checked);
+        updateHiddenInput(elementId);
+    };
+    
+    window.categoryTreeExpandAll = function(elementId) {
+        $('#' + elementId + '_container .category-children').addClass('expanded');
+        $('#' + elementId + '_container .category-toggle').text('−');
+    };
+    
+    window.categoryTreeCollapseAll = function(elementId) {
+        $('#' + elementId + '_container .category-children').removeClass('expanded');
+        $('#' + elementId + '_container .category-toggle').text('+');
+    };
+    
+    window.categoryTreeSelectAll = function(elementId) {
+        $('#' + elementId + '_container .category-checkbox').prop('checked', true);
+        updateHiddenInput(elementId);
+    };
+    
+    window.categoryTreeDeselectAll = function(elementId) {
+        $('#' + elementId + '_container .category-checkbox').prop('checked', false);
+        updateHiddenInput(elementId);
+    };
+    
+    // Initialize
+    $(document).ready(function() {
+        $('#<?= $block->escapeJs($elementId) ?>_container .category-checkbox').on('change', function() {
+            updateHiddenInput('<?= $block->escapeJs($elementId) ?>');
+        });
+    });
+});
+</script>

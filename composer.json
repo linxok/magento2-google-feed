@@ -1,0 +1,38 @@
+{
+    "name": "mycompany/magento2-google-feed",
+    "description": "Google Shopping Feed Generator for Magento 2 with multi-store and multi-language support",
+    "type": "magento2-module",
+    "version": "1.0.2",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "MyCompany",
+            "email": "info@example.com"
+        }
+    ],
+    "keywords": [
+        "magento2",
+        "google shopping",
+        "product feed",
+        "xml feed",
+        "multi-store",
+        "multi-language",
+        "google merchant center"
+    ],
+    "require": {
+        "php": "^7.4|^8.0|^8.1|^8.2",
+        "magento/framework": "^102.0|^103.0",
+        "magento/module-backend": "^102.0|^103.0",
+        "magento/module-catalog": "^104.0|^105.0",
+        "magento/module-store": "^101.0|^102.0",
+        "magento/module-config": "^101.0|^102.0"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "MyCompany\\GoogleFeed\\": ""
+        }
+    }
+}

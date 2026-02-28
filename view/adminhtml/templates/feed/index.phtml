@@ -1,0 +1,108 @@
+<?php
+/**
+ * @var \MyCompany\GoogleFeed\Block\Adminhtml\Feed\Index $block
+ */
+$stores = $block->getActiveStores();
+?>
+
+<div class="page-main-actions">
+    <div class="page-actions">
+        <form action="<?= $block->escapeUrl($block->getSaveFilesUrl()) ?>" method="post" id="feed-generate-form">
+            <?= $block->getBlockHtml('formkey') ?>
+            <button type="submit" class="action-primary">
+                <span><?= $block->escapeHtml(__('Generate & Save Feed Files')) ?></span>
+            </button>
+        </form>
+        <button type="button" class="action-secondary" onclick="location.href='<?= $block->escapeUrl($block->getConfigUrl()) ?>'">
+            <span><?= $block->escapeHtml(__('Configure')) ?></span>
+        </button>
+    </div>
+</div>
+
+<div class="admin__page-section">
+    <div class="admin__page-section-title">
+        <span class="title"><?= $block->escapeHtml(__('Google Feed Management')) ?></span>
+    </div>
+    <div class="admin__page-section-content">
+        <div class="messages">
+            <div class="message message-notice">
+                <div>
+                    <?= $block->escapeHtml(__('This page allows you to generate Google Shopping feeds for your stores.')) ?>
+                </div>
+            </div>
+        </div>
+
+        <h3><?= $block->escapeHtml(__('Available Stores')) ?></h3>
+        
+        <?php if (empty($stores)): ?>
+            <div class="message message-warning">
+                <?= $block->escapeHtml(__('No active stores found.')) ?>
+            </div>
+        <?php else: ?>
+            <table class="data-grid">
+                <thead>
+                    <tr>
+                        <th><?= $block->escapeHtml(__('Website')) ?></th>
+                        <th><?= $block->escapeHtml(__('Store View')) ?></th>
+                        <th><?= $block->escapeHtml(__('Store Code')) ?></th>
+                        <th><?= $block->escapeHtml(__('Feed Status')) ?></th>
+                        <th><?= $block->escapeHtml(__('Feed URL')) ?></th>
+                        <th><?= $block->escapeHtml(__('Actions')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($stores as $store): ?>
+                        <tr>
+                            <td><?= $block->escapeHtml($store['website']) ?></td>
+                            <td><?= $block->escapeHtml($store['name']) ?></td>
+                            <td><strong><?= $block->escapeHtml($store['code']) ?></strong></td>
+                            <td>
+                                <?php if ($store['enabled']): ?>
+                                    <span class="grid-severity-notice"><span><?= $block->escapeHtml(__('Enabled')) ?></span></span>
+                                <?php else: ?>
+                                    <span class="grid-severity-minor"><span><?= $block->escapeHtml(__('Disabled')) ?></span></span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a href="<?= $block->escapeUrl($store['url']) ?>" target="_blank">
+                                    <?= $block->escapeHtml($store['url']) ?>
+                                </a>
+                            </td>
+                            <td>
+                                <a href="<?= $block->escapeUrl($store['download_url']) ?>" target="_blank" class="action-default">
+                                    <?= $block->escapeHtml(__('Download XML')) ?>
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <div class="admin__page-section-item" style="margin-top: 30px;">
+            <h3><?= $block->escapeHtml(__('File Generation')) ?></h3>
+            <p>
+                <?= $block->escapeHtml(__('Click "Generate & Save Feed Files" to create feed files for all configured stores.')) ?>
+                <?= $block->escapeHtml(__('Files will be saved to pub/media/googlefeed/ with descriptive names including store name, code, and language.')) ?>
+            </p>
+            <p>
+                <strong><?= $block->escapeHtml(__('Example files:')) ?></strong>
+                feed_english_store_en_en.xml, feed_ukrainian_store_uk_uk.xml
+            </p>
+            <p>
+                <strong><?= $block->escapeHtml(__('Automatic Generation:')) ?></strong>
+                <?= $block->escapeHtml(__('Configure cron settings in System Configuration to automatically generate feeds on schedule.')) ?>
+            </p>
+        </div>
+
+        <div class="admin__page-section-item" style="margin-top: 30px;">
+            <h3><?= $block->escapeHtml(__('Multi-Language Setup')) ?></h3>
+            <ul>
+                <li><?= $block->escapeHtml(__('Each store view generates a separate feed with localized content')) ?></li>
+                <li><?= $block->escapeHtml(__('Product names, descriptions, and URLs are automatically translated per store view')) ?></li>
+                <li><?= $block->escapeHtml(__('Feed files include store name, code, and language for easy identification')) ?></li>
+                <li><?= $block->escapeHtml(__('Configure each store view separately in System Configuration')) ?></li>
+            </ul>
+        </div>
+    </div>
+</div>

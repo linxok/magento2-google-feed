@@ -1,0 +1,17 @@
+<?php
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+
+/** @var \MyCompany\GoogleFeed\Block\FeedLink $block */
+?>
+<?php if ($block->isFeedEnabled()): ?>
+<div class="google-feed-link">
+    <a href="<?php echo $block->escapeUrl($block->getFeedUrl()) ?>" 
+       title="<?php echo $block->escapeHtml($block->getFeedTitle()) ?>"
+       target="_blank">
+        <?php echo $block->escapeHtml(__('Google Shopping Feed')) ?>
+    </a>
+</div>
+<?php endif; ?>

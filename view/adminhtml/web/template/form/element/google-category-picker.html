@@ -1,0 +1,61 @@
+<!--
+    Knockout template for Google Category picker field.
+    Renders: hidden input (stores numeric ID) + readonly text input (shows label) + Open Picker button + Clear button.
+    Value is set via postMessage from the PHP-rendered popup window.
+-->
+<div class="admin__field-control" data-bind="css: {'_disabled': disabled()}">
+    <input
+        class="admin__control-text"
+        type="text"
+        readonly="readonly"
+        data-bind="
+            attr: {
+                id: uid + '_label',
+                placeholder: $t('No category selected')
+            },
+            value: displayLabel,
+            css: {'_disabled': disabled()}
+        "
+        style="width:auto;min-width:280px;cursor:default;background:#f9f9f9;color:#555;"
+    />
+    <!-- ko if: value() -->
+    <span
+        style="display:inline-block;margin-left:6px;padding:2px 7px;background:#e8f3fc;border:1px solid #b6d9f5;border-radius:10px;font-size:11px;color:#1979c3;vertical-align:middle;"
+        data-bind="text: 'ID: ' + value()"
+    ></span>
+    <!-- /ko -->
+    <button
+        type="button"
+        class="action-default scalable"
+        style="margin-left:8px;"
+        data-bind="
+            click: openPickerWindow,
+            attr: {title: $t('Browse Google category tree')},
+            css: {'disabled': disabled()},
+            enable: !disabled()
+        "
+    ><!-- ko i18n: 'Select Category'--><!-- /ko --></button>
+    <!-- ko if: value() -->
+    <button
+        type="button"
+        class="action-default scalable"
+        style="margin-left:4px;"
+        data-bind="
+            click: clearValue,
+            attr: {title: $t('Clear selection')}
+        "
+    ><!-- ko i18n: 'Clear'--><!-- /ko --></button>
+    <!-- /ko -->
+    <input
+        class="admin__control-hidden"
+        type="hidden"
+        data-bind="
+            attr: {
+                name: inputName,
+                id: uid,
+                'data-form-part': $data.ns
+            },
+            value: value
+        "
+    />
+</div>

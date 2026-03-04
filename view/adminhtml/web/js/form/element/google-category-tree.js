@@ -1,62 +1,71 @@
 define([
-    'Magento_Ui/js/form/element/select',
+    'Magento_Ui/js/form/element/abstract',
     'jquery',
-    'mage/translate'
-], function (Select, $, $t) {
+    'ko',
+    'mage/translate',
+    'uiRegistry'
+], function (Abstract, $, ko, $t, registry) {
     'use strict';
 
-    return Select.extend({
+    return Abstract.extend({
+
+        defaults: {
+            elementTmpl: 'MyCompany_GoogleFeed/form/element/google-category-picker',
+            pickerUrl: '',
+            displayLabel: '',
+            listens: {}
+        },
 
         /**
          * Initialize component
          */
         initialize: function () {
             this._super();
-            this.addPickerButton();
+            this.displayLabel = ko.observable('');
+            this._bindPostMessage();
             return this;
         },
 
         /**
-         * Add lightweight popup picker button near current field
+         * Initialize observables
          */
-        addPickerButton: function () {
-            var self = this;
-
-            window.setTimeout(function () {
-                var fieldContainer = $('[data-index="' + self.index + '"] .admin__field-control').first(),
-                    buttonClass = 'mycompany-google-category-picker-btn';
-
-                if (!fieldContainer.length || fieldContainer.find('.' + buttonClass).length) {
-                    return;
-                }
-
-                $('<button/>', {
-                    type: 'button',
-                    'class': 'action-default scalable ' + buttonClass,
-                    text: $t('Open Tree Picker'),
-                    css: {
-                        marginLeft: '10px'
-                    }
-                }).on('click', function () {
-                    self.openPickerWindow();
-                }).appendTo(fieldContainer);
-            }, 250);
+        initObservable: function () {
+            this._super().observe(['displayLabel']);
+            return this;
         },
 
         /**
-         * Open separate picker window rendered by PHP controller
+         * Listen for postMessage from picker popup window
+         */
+        _bindPostMessage: function () {
+            var self = this;
+
+            window.addEventListener('message', function (event) {
+                if (!event.data || event.data.type !== 'gcpick') {
+                    return;
+                }
+                self.value(String(event.data.id));
+                self.displayLabel(String(event.data.label));
+                self.bubble('update', self.hasChanged());
+            });
+        },
+
+        /**
+         * Open PHP-rendered picker popup
          */
         openPickerWindow: function () {
             var storeId = this.getStoreId(),
-                inputName = this.inputName || 'category[mycompany_google_product_category]',
-                baseUrl = this.pickerUrl || 'googlefeed/category/picker',
-                selectedId = this.value && typeof this.value === 'function' ? this.value() : '',
+                baseUrl = this.pickerUrl || '',
+                selectedId = typeof this.value === 'function' ? this.value() : '',
                 separator = baseUrl.indexOf('?') === -1 ? '?' : '&',
                 url = baseUrl
                     + separator + 'store=' + encodeURIComponent(storeId)
-                    + '&field=' + encodeURIComponent(inputName)
                     + '&selected=' + encodeURIComponent(selectedId || ''),
-                pickerWindow = window.open(url, 'mycompany_google_category_picker', 'width=980,height=700,resizable=yes,scrollbars=yes');
+                pickerWindow = window.open(
+                    url,
+                    'mycompany_google_category_picker',
+                    'width=980,height=700,resizable=yes,scrollbars=yes'
+                );
 
             if (pickerWindow) {
                 pickerWindow.focus();
@@ -64,17 +73,27 @@ define([
         },
 
         /**
-         * Get current store ID
+         * Clear the selected value
+         */
+        clearValue: function () {
+            this.value('');
+            this.displayLabel('');
+            this.bubble('update', this.hasChanged());
+        },
+
+        /**
+         * Get current store ID from URL
          */
         getStoreId: function () {
-            var storeId = 0;
-            var matches = window.location.href.match(/\/store\/(\d+)/);
-            
+            var matches = window.location.href.match(/[?&]store=(\d+)/);
             if (matches && matches[1]) {
-                storeId = matches[1];
+                return matches[1];
             }
-            
-            return storeId;
+            matches = window.location.href.match(/\/store\/(\d+)/);
+            if (matches && matches[1]) {
+                return matches[1];
+            }
+            return 0;
         }
     });
 });

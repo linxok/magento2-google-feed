@@ -51,7 +51,6 @@ class Picker extends Action implements HttpGetActionInterface
     public function execute()
     {
         $storeId = (int)$this->getRequest()->getParam('store', 0);
-        $field = (string)$this->getRequest()->getParam('field', 'category[mycompany_google_product_category]');
         $selectedId = (int)$this->getRequest()->getParam('selected', 0);
 
         $locale = (string)$this->scopeConfig->getValue(
@@ -60,9 +59,9 @@ class Picker extends Action implements HttpGetActionInterface
             $storeId
         );
 
-        $options = $this->googleCategoryStorage->getOptionsByLocale($locale ?: 'en_US');
+        $tree = $this->googleCategoryStorage->getTreeByLocale($locale ?: 'en_US');
 
-        $html = $this->renderHtml($options, $field, $selectedId);
+        $html = $this->renderHtml($tree, $selectedId);
 
         $result = $this->rawFactory->create();
         $result->setHeader('Content-Type', 'text/html; charset=UTF-8', true);
@@ -71,64 +70,186 @@ class Picker extends Action implements HttpGetActionInterface
     }
 
     /**
-     * @param array $options
-     * @param string $fieldName
+     * Recursively build collapsible <details>/<summary> tree HTML
+     *
+     * @param array $nodes
      * @param int $selectedId
      * @return string
      */
-    private function renderHtml(array $options, $fieldName, $selectedId)
+    private function buildTreeHtml(array $nodes, $selectedId)
     {
-        $fieldJs = json_encode($fieldName);
-        $rows = [];
-
-        foreach ($options as $option) {
-            $value = $this->escaper->escapeHtmlAttr((string)$option['value']);
-            $label = $this->escaper->escapeHtml((string)$option['label']);
-            $labelJs = json_encode((string)$option['label']);
-            $isSelected = (int)$option['value'] === $selectedId;
-            $rowStyle = $isSelected ? ' style="background:#eef6ff;"' : '';
-            $selectedBadge = $isSelected
-                ? '<span style="display:inline-block;margin-left:8px;padding:2px 6px;background:#007bdb;color:#fff;border-radius:10px;font-size:11px;">Current</span>'
-                : '';
-            $rows[] = '<tr>'
-                . $rowStyle
-                . '<td style="padding:6px 8px;white-space:nowrap;">' . $value . '</td>'
-                . '<td style="padding:6px 8px;">' . $label . $selectedBadge . '</td>'
-                . '<td style="padding:6px 8px;">'
-                . '<button type="button" class="action-default" onclick="pickCategory(' . $value . ', ' . $labelJs . ')">Select</button>'
-                . '</td>'
-                . '</tr>';
+        if (empty($nodes)) {
+            return '';
         }
 
-        return '<!doctype html>'
-            . '<html><head><meta charset="utf-8"><title>Google Category Picker</title></head>'
-            . '<body style="font-family:Arial,sans-serif;padding:12px;">'
-            . '<h2 style="margin:0 0 10px;">Google Product Category Picker</h2>'
-            . '<p style="margin:0 0 12px;color:#666;">Select a category to apply it to the current form field.</p>'
-            . '<p id="selectedValue" style="margin:0 0 12px;color:#444;"></p>'
-            . '<input type="text" id="search" placeholder="Search..." onkeyup="filterRows()" style="width:100%;padding:8px;margin-bottom:10px;">'
-            . '<div style="max-height:540px;overflow:auto;border:1px solid #ddd;">'
-            . '<table id="categoryTable" style="width:100%;border-collapse:collapse;">'
-            . '<thead><tr style="background:#f7f7f7;"><th style="text-align:left;padding:8px;">ID</th><th style="text-align:left;padding:8px;">Category</th><th style="text-align:left;padding:8px;">Action</th></tr></thead>'
-            . '<tbody>' . implode('', $rows) . '</tbody></table></div>'
-            . '<script>'
-            . 'var targetField=' . $fieldJs . ';'
-            . 'var currentSelected=' . (int)$selectedId . ';'
-            . 'if(currentSelected>0){document.getElementById("selectedValue").textContent="Current selected ID: "+currentSelected;}'
-            . 'function pickCategory(id,label){'
-            . 'if(window.opener&&!window.opener.closed){'
-            . 'var doc=window.opener.document;'
-            . 'var el=doc.querySelector("[name=\""+targetField+"\"]");'
-            . 'if(el){el.value=String(id);el.dispatchEvent(new Event("change",{bubbles:true}));window.close();return;}'
-            . '}'
-            . 'alert("Unable to set value in opener window.");'
-            . '}'
-            . 'function filterRows(){'
-            . 'var q=document.getElementById("search").value.toLowerCase();'
-            . 'var rows=document.querySelectorAll("#categoryTable tbody tr");'
-            . 'rows.forEach(function(r){r.style.display=r.textContent.toLowerCase().indexOf(q)!==-1?"":"none";});'
-            . '}'
-            . '</script>'
-            . '</body></html>';
+        $html = '<ul class="gc-tree-list">';
+
+        foreach ($nodes as $node) {
+            $id = (int)$node['value'];
+            $name = $this->escaper->escapeHtml((string)$node['label']);
+            $nameJs = json_encode((string)$node['label']);
+            $hasChildren = !empty($node['optgroup']);
+            $isSelected = ($id === $selectedId);
+            $selectedClass = $isSelected ? ' gc-selected' : '';
+
+            if ($hasChildren) {
+                $html .= '<li class="gc-has-children">';
+                $html .= '<details' . ($isSelected ? ' open' : '') . '>';
+                $html .= '<summary class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
+                $html .= '<span class="gc-node-label">' . $name . '</span>';
+                $html .= '<span class="gc-node-id">' . $id . '</span>';
+                $html .= '<button type="button" class="gc-pick-btn" onclick="pickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '</summary>';
+                $html .= $this->buildTreeHtml($node['optgroup'], $selectedId);
+                $html .= '</details>';
+                $html .= '</li>';
+            } else {
+                $html .= '<li class="gc-leaf">';
+                $html .= '<div class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
+                $html .= '<span class="gc-node-label">' . $name . '</span>';
+                $html .= '<span class="gc-node-id">' . $id . '</span>';
+                $html .= '<button type="button" class="gc-pick-btn" onclick="pickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '</div>';
+                $html .= '</li>';
+            }
+        }
+
+        $html .= '</ul>';
+
+        return $html;
+    }
+
+    /**
+     * @param array $tree
+     * @param int $selectedId
+     * @return string
+     */
+    private function renderHtml(array $tree, $selectedId)
+    {
+        $treeHtml = $this->buildTreeHtml($tree, $selectedId);
+        $selectedIdJs = (int)$selectedId;
+
+        return <<<HTML
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Google Category Picker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:13px;background:#fff;color:#333}
+#gc-header{position:sticky;top:0;background:#fff;z-index:10;padding:10px 12px;border-bottom:1px solid #ddd}
+#gc-header h2{font-size:15px;font-weight:600;margin-bottom:8px}
+#gc-search{width:100%;padding:7px 10px;border:1px solid #bbb;border-radius:3px;font-size:13px}
+#gc-info{font-size:12px;color:#666;margin-top:6px;min-height:16px}
+#gc-tree{padding:8px 12px;overflow:auto}
+.gc-tree-list{list-style:none;padding-left:16px}
+#gc-tree>.gc-tree-list{padding-left:0}
+.gc-node{display:flex;align-items:center;padding:4px 6px;border-radius:3px;gap:6px;cursor:default}
+.gc-node:hover{background:#f0f7ff}
+.gc-selected{background:#dbeeff!important;font-weight:600}
+summary.gc-node{cursor:pointer;list-style:none}
+summary.gc-node::-webkit-details-marker{display:none}
+summary.gc-node::before{content:'▶';font-size:9px;color:#999;min-width:10px;transition:transform .15s}
+details[open]>summary.gc-node::before{transform:rotate(90deg)}
+.gc-node-label{flex:1;word-break:break-word}
+.gc-node-id{color:#999;font-size:11px;white-space:nowrap}
+.gc-pick-btn{padding:2px 8px;font-size:11px;background:#1979c3;color:#fff;border:none;border-radius:2px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.gc-pick-btn:hover{background:#105fa0}
+.gc-hidden{display:none!important}
+.gc-highlight{background:rgba(255,220,0,0.4);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="gc-header">
+  <h2>Google Product Category</h2>
+  <input type="text" id="gc-search" placeholder="Search categories..." autocomplete="off">
+  <div id="gc-info"></div>
+</div>
+<div id="gc-tree">
+{$treeHtml}
+</div>
+<script>
+var selectedId={$selectedIdJs};
+var infoEl=document.getElementById('gc-info');
+var searchEl=document.getElementById('gc-search');
+
+if(selectedId>0){infoEl.textContent='Current ID: '+selectedId;}
+
+function pickCategory(id,label){
+  if(window.opener&&!window.opener.closed){
+    window.opener.postMessage({type:'gcpick',id:String(id),label:label},'*');
+    window.close();
+    return;
+  }
+  alert('Cannot communicate with opener window.');
+}
+
+var searchTimer=null;
+searchEl.addEventListener('input',function(){
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(function(){runSearch(searchEl.value.trim());},150);
+});
+
+function runSearch(q){
+  var allLi=document.querySelectorAll('#gc-tree li');
+  var allDetails=document.querySelectorAll('#gc-tree details');
+
+  if(!q){
+    allLi.forEach(function(li){li.classList.remove('gc-hidden');});
+    allDetails.forEach(function(d){d.removeAttribute('open');});
+    document.querySelectorAll('.gc-highlight').forEach(function(s){
+      var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
+    });
+    infoEl.textContent=selectedId>0?'Current ID: '+selectedId:'';
+    return;
+  }
+
+  var ql=q.toLowerCase();
+  document.querySelectorAll('.gc-highlight').forEach(function(s){
+    var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
+  });
+
+  var matchCount=0;
+  allLi.forEach(function(li){li.classList.add('gc-hidden');});
+
+  allLi.forEach(function(li){
+    var labelEl=li.querySelector(':scope>.gc-node .gc-node-label,:scope>details>summary .gc-node-label');
+    if(!labelEl)return;
+    var text=labelEl.textContent||'';
+    if(text.toLowerCase().indexOf(ql)===-1)return;
+    matchCount++;
+    li.classList.remove('gc-hidden');
+    highlightText(labelEl,q);
+    var p=li.parentNode;
+    while(p&&p.id!=='gc-tree'){
+      if(p.tagName==='LI')p.classList.remove('gc-hidden');
+      if(p.tagName==='DETAILS')p.setAttribute('open','');
+      p=p.parentNode;
+    }
+  });
+
+  infoEl.textContent=matchCount+' result'+(matchCount!==1?'s':'');
+}
+
+function highlightText(el,q){
+  var text=el.textContent||'';
+  var idx=text.toLowerCase().indexOf(q.toLowerCase());
+  if(idx===-1)return;
+  var frag=document.createDocumentFragment();
+  frag.appendChild(document.createTextNode(text.slice(0,idx)));
+  var mark=document.createElement('mark');
+  mark.className='gc-highlight';
+  mark.textContent=text.slice(idx,idx+q.length);
+  frag.appendChild(mark);
+  frag.appendChild(document.createTextNode(text.slice(idx+q.length)));
+  el.textContent='';
+  el.appendChild(frag);
+}
+</script>
+</body>
+</html>
+HTML;
     }
 }
+

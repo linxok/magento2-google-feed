@@ -179,7 +179,7 @@ if(selectedId>0){infoEl.textContent='Current ID: '+selectedId;}
 function pickCategory(id,label){
   if(window.opener&&!window.opener.closed){
     window.opener.postMessage({type:'gcpick',id:String(id),label:label},'*');
-    window.close();
+    setTimeout(function(){window.close();},100);
     return;
   }
   alert('Cannot communicate with opener window.');

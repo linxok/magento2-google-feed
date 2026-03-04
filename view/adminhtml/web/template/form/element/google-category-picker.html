@@ -3,7 +3,7 @@
     Renders: hidden input (stores numeric ID) + readonly text input (shows label) + Open Picker button + Clear button.
     Value is set via postMessage from the PHP-rendered popup window.
 -->
-<div class="admin__field-control" data-bind="css: {'_disabled': disabled()}">
+<div class="admin__field-control">
     <input
         class="admin__control-text"
         type="text"
@@ -13,8 +13,7 @@
                 id: uid + '_label',
                 placeholder: $t('No category selected')
             },
-            value: displayLabel,
-            css: {'_disabled': disabled()}
+            value: displayLabel
         "
         style="width:auto;min-width:280px;cursor:default;background:#f9f9f9;color:#555;"
     />
@@ -28,22 +27,14 @@
         type="button"
         class="action-default scalable"
         style="margin-left:8px;"
-        data-bind="
-            click: openPickerWindow,
-            attr: {title: $t('Browse Google category tree')},
-            css: {'disabled': disabled()},
-            enable: !disabled()
-        "
+        data-bind="click: openPickerWindow"
     ><!-- ko i18n: 'Select Category'--><!-- /ko --></button>
     <!-- ko if: value() -->
     <button
         type="button"
         class="action-default scalable"
         style="margin-left:4px;"
-        data-bind="
-            click: clearValue,
-            attr: {title: $t('Clear selection')}
-        "
+        data-bind="click: clearValue"
     ><!-- ko i18n: 'Clear'--><!-- /ko --></button>
     <!-- /ko -->
     <input

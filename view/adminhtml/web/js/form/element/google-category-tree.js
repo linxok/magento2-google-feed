@@ -17,20 +17,19 @@ define([
         },
 
         /**
-         * Initialize component
+         * Initialize observables — called before initialize()
          */
-        initialize: function () {
-            this._super();
-            this.displayLabel = ko.observable('');
-            this._bindPostMessage();
+        initObservable: function () {
+            this._super().observe(['displayLabel']);
             return this;
         },
 
         /**
-         * Initialize observables
+         * Initialize component
          */
-        initObservable: function () {
-            this._super().observe(['displayLabel']);
+        initialize: function () {
+            this._super();
+            this._bindPostMessage();
             return this;
         },
 

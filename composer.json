@@ -2,7 +2,7 @@
     "name": "mycompany/magento2-google-feed",
     "description": "Google Shopping Feed Generator for Magento 2 with multi-store and multi-language support",
     "type": "magento2-module",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "license": "MIT",
     "authors": [
         {

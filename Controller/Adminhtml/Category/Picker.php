@@ -98,7 +98,7 @@ class Picker extends Action implements HttpGetActionInterface
                 $html .= '<summary class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
                 $html .= '<span class="gc-node-label">' . $name . '</span>';
                 $html .= '<span class="gc-node-id">' . $id . '</span>';
-                $html .= '<button type="button" class="gc-pick-btn" onclick="pickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '<button type="button" class="gc-pick-btn" onclick="gcPickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
                 $html .= '</summary>';
                 $html .= $this->buildTreeHtml($node['optgroup'], $selectedId);
                 $html .= '</details>';
@@ -108,7 +108,7 @@ class Picker extends Action implements HttpGetActionInterface
                 $html .= '<div class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
                 $html .= '<span class="gc-node-label">' . $name . '</span>';
                 $html .= '<span class="gc-node-id">' . $id . '</span>';
-                $html .= '<button type="button" class="gc-pick-btn" onclick="pickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '<button type="button" class="gc-pick-btn" onclick="gcPickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
                 $html .= '</div>';
                 $html .= '</li>';
             }
@@ -130,19 +130,12 @@ class Picker extends Action implements HttpGetActionInterface
         $selectedIdJs = (int)$selectedId;
 
         return <<<HTML
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Google Category Picker</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:13px;background:#fff;color:#333}
-#gc-header{position:sticky;top:0;background:#fff;z-index:10;padding:10px 12px;border-bottom:1px solid #ddd}
-#gc-header h2{font-size:15px;font-weight:600;margin-bottom:8px}
-#gc-search{width:100%;padding:7px 10px;border:1px solid #bbb;border-radius:3px;font-size:13px}
-#gc-info{font-size:12px;color:#666;margin-top:6px;min-height:16px}
-#gc-tree{padding:8px 12px;overflow:auto}
+#gc-picker-wrap{display:flex;flex-direction:column;height:100%}
+#gc-search-wrap{padding:8px 0 8px 0;flex-shrink:0}
+#gc-search{width:100%;padding:7px 10px;border:1px solid #bbb;border-radius:3px;font-size:13px;box-sizing:border-box}
+#gc-info{font-size:12px;color:#666;margin-top:4px;min-height:16px}
+#gc-tree{overflow-y:auto;flex:1;padding-top:4px}
 .gc-tree-list{list-style:none;padding-left:16px}
 #gc-tree>.gc-tree-list{padding-left:0}
 .gc-node{display:flex;align-items:center;padding:4px 6px;border-radius:3px;gap:6px;cursor:default}
@@ -159,31 +152,25 @@ details[open]>summary.gc-node::before{transform:rotate(90deg)}
 .gc-hidden{display:none!important}
 .gc-highlight{background:rgba(255,220,0,0.4);border-radius:2px}
 </style>
-</head>
-<body>
-<div id="gc-header">
-  <h2>Google Product Category</h2>
-  <input type="text" id="gc-search" placeholder="Search categories..." autocomplete="off">
-  <div id="gc-info"></div>
-</div>
-<div id="gc-tree">
-{$treeHtml}
+<div id="gc-picker-wrap">
+  <div id="gc-search-wrap">
+    <input type="text" id="gc-search" placeholder="Search categories..." autocomplete="off">
+    <div id="gc-info"></div>
+  </div>
+  <div id="gc-tree">{$treeHtml}</div>
 </div>
 <script>
+(function(){
 var selectedId={$selectedIdJs};
 var infoEl=document.getElementById('gc-info');
 var searchEl=document.getElementById('gc-search');
-
 if(selectedId>0){infoEl.textContent='Current ID: '+selectedId;}
 
-function pickCategory(id,label){
-  if(window.opener&&!window.opener.closed){
-    window.opener.postMessage({type:'gcpick',id:String(id),label:label},'*');
-    setTimeout(function(){window.close();},100);
-    return;
+window.gcPickCategory=function(id,label){
+  if(typeof window.gcOnPick==='function'){
+    window.gcOnPick(String(id),String(label));
   }
-  alert('Cannot communicate with opener window.');
-}
+};
 
 var searchTimer=null;
 searchEl.addEventListener('input',function(){
@@ -193,26 +180,21 @@ searchEl.addEventListener('input',function(){
 
 function runSearch(q){
   var allLi=document.querySelectorAll('#gc-tree li');
-  var allDetails=document.querySelectorAll('#gc-tree details');
-
   if(!q){
     allLi.forEach(function(li){li.classList.remove('gc-hidden');});
-    allDetails.forEach(function(d){d.removeAttribute('open');});
+    document.querySelectorAll('#gc-tree details').forEach(function(d){d.removeAttribute('open');});
     document.querySelectorAll('.gc-highlight').forEach(function(s){
       var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
     });
     infoEl.textContent=selectedId>0?'Current ID: '+selectedId:'';
     return;
   }
-
   var ql=q.toLowerCase();
   document.querySelectorAll('.gc-highlight').forEach(function(s){
     var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
   });
-
   var matchCount=0;
   allLi.forEach(function(li){li.classList.add('gc-hidden');});
-
   allLi.forEach(function(li){
     var labelEl=li.querySelector(':scope>.gc-node .gc-node-label,:scope>details>summary .gc-node-label');
     if(!labelEl)return;
@@ -228,7 +210,6 @@ function runSearch(q){
       p=p.parentNode;
     }
   });
-
   infoEl.textContent=matchCount+' result'+(matchCount!==1?'s':'');
 }
 
@@ -246,9 +227,8 @@ function highlightText(el,q){
   el.textContent='';
   el.appendChild(frag);
 }
+})();
 </script>
-</body>
-</html>
 HTML;
     }
 }

@@ -15,6 +15,7 @@ use Magento\Catalog\Model\Product\Visibility;
 use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\Catalog\Api\CategoryRepositoryInterface;
 use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Psr\Log\LoggerInterface;
@@ -67,6 +68,11 @@ class FeedGenerator
     protected $logger;
 
     /**
+     * @var CategoryRepositoryInterface
+     */
+    protected $categoryRepository;
+
+    /**
      * FeedGenerator constructor.
      * @param CollectionFactory $productCollectionFactory
      * @param Image $imageHelper
@@ -75,6 +81,7 @@ class FeedGenerator
      * @param PriceCurrencyInterface $priceCurrency
      * @param StockRegistryInterface $stockRegistry
      * @param ProductRepositoryInterface $productRepository
+     * @param CategoryRepositoryInterface $categoryRepository
      * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param LoggerInterface $logger
      */
@@ -86,6 +93,7 @@ class FeedGenerator
         PriceCurrencyInterface $priceCurrency,
         StockRegistryInterface $stockRegistry,
         ProductRepositoryInterface $productRepository,
+        CategoryRepositoryInterface $categoryRepository,
         SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
         LoggerInterface $logger
     ) {
@@ -96,6 +104,7 @@ class FeedGenerator
         $this->priceCurrency = $priceCurrency;
         $this->stockRegistry = $stockRegistry;
         $this->productRepository = $productRepository;
+        $this->categoryRepository = $categoryRepository;
         $this->searchCriteriaBuilderFactory = $searchCriteriaBuilderFactory;
         $this->logger = $logger;
     }
@@ -296,6 +305,12 @@ class FeedGenerator
         $configCurrency = $this->getConfigValue('googlefeed/feed/currency');
         $currency = $configCurrency ?: $this->storeManager->getStore()->getCurrentCurrency()->getCode();
         
+        // Skip product if price is not set
+        if ($basePrice === null || $basePrice === '') {
+            $this->logger->warning('Product ' . $product->getSku() . ' has no price set, skipping');
+            return;
+        }
+        
         // Convert price to feed currency if different from base currency
         $baseCurrencyCode = $this->storeManager->getStore()->getBaseCurrencyCode();
         if ($currency !== $baseCurrencyCode) {
@@ -305,7 +320,7 @@ class FeedGenerator
             $priceValue = $basePrice;
         }
         
-        $priceFormatted = number_format($priceValue, 2, '.', '');
+        $priceFormatted = number_format((float)$priceValue, 2, '.', '');
         $xml->writeElement('g:price', $priceFormatted . ' ' . $currency);
         
         // Availability
@@ -364,9 +379,18 @@ class FeedGenerator
         }
         
         // Product Type (Magento category)
-        if ($product->getCategory()) {
-            $categoryName = $product->getCategory()->getName();
-            $xml->writeElement('g:product_type', $this->sanitizeXmlValue($categoryName));
+        $categoryIds = $product->getCategoryIds();
+        if (!empty($categoryIds)) {
+            try {
+                $categoryId = end($categoryIds);
+                $category = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
+                if ($category && $category->getName()) {
+                    $categoryPath = $this->getCategoryPath($category);
+                    $xml->writeElement('g:product_type', $this->sanitizeXmlValue($categoryPath));
+                }
+            } catch (\Exception $e) {
+                $this->logger->error('Error getting category for product ' . $product->getSku() . ': ' . $e->getMessage());
+            }
         }
         
         // Color
@@ -426,6 +450,34 @@ class FeedGenerator
         }
 
         $xml->endElement(); // item
+    }
+
+    /**
+     * Get category path for product_type
+     * @param \Magento\Catalog\Api\Data\CategoryInterface $category
+     * @return string
+     */
+    protected function getCategoryPath($category)
+    {
+        $pathIds = explode('/', $category->getPath());
+        $categoryNames = [];
+        
+        foreach ($pathIds as $categoryId) {
+            if ($categoryId <= 2) {
+                continue;
+            }
+            
+            try {
+                $cat = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
+                if ($cat && $cat->getName()) {
+                    $categoryNames[] = $cat->getName();
+                }
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+        
+        return implode(' > ', $categoryNames);
     }
 
     /**

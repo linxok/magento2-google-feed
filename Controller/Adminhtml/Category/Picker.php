@@ -98,7 +98,7 @@ class Picker extends Action implements HttpGetActionInterface
                 $html .= '<summary class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
                 $html .= '<span class="gc-node-label">' . $name . '</span>';
                 $html .= '<span class="gc-node-id">' . $id . '</span>';
-                $html .= '<button type="button" class="gc-pick-btn" onclick="gcPickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '<button type="button" class="gc-pick-btn" data-id="' . $id . '" data-label=' . $nameJs . '>Select</button>';
                 $html .= '</summary>';
                 $html .= $this->buildTreeHtml($node['optgroup'], $selectedId);
                 $html .= '</details>';
@@ -108,7 +108,7 @@ class Picker extends Action implements HttpGetActionInterface
                 $html .= '<div class="gc-node' . $selectedClass . '" data-id="' . $id . '" data-name=' . $nameJs . '>';
                 $html .= '<span class="gc-node-label">' . $name . '</span>';
                 $html .= '<span class="gc-node-id">' . $id . '</span>';
-                $html .= '<button type="button" class="gc-pick-btn" onclick="gcPickCategory(' . $id . ',' . $nameJs . ')">Select</button>';
+                $html .= '<button type="button" class="gc-pick-btn" data-id="' . $id . '" data-label=' . $nameJs . '>Select</button>';
                 $html .= '</div>';
                 $html .= '</li>';
             }
@@ -159,76 +159,6 @@ details[open]>summary.gc-node::before{transform:rotate(90deg)}
   </div>
   <div id="gc-tree">{$treeHtml}</div>
 </div>
-<script>
-(function(){
-var selectedId={$selectedIdJs};
-var infoEl=document.getElementById('gc-info');
-var searchEl=document.getElementById('gc-search');
-if(selectedId>0){infoEl.textContent='Current ID: '+selectedId;}
-
-window.gcPickCategory=function(id,label){
-  if(typeof window.gcOnPick==='function'){
-    window.gcOnPick(String(id),String(label));
-  }
-};
-
-var searchTimer=null;
-searchEl.addEventListener('input',function(){
-  clearTimeout(searchTimer);
-  searchTimer=setTimeout(function(){runSearch(searchEl.value.trim());},150);
-});
-
-function runSearch(q){
-  var allLi=document.querySelectorAll('#gc-tree li');
-  if(!q){
-    allLi.forEach(function(li){li.classList.remove('gc-hidden');});
-    document.querySelectorAll('#gc-tree details').forEach(function(d){d.removeAttribute('open');});
-    document.querySelectorAll('.gc-highlight').forEach(function(s){
-      var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
-    });
-    infoEl.textContent=selectedId>0?'Current ID: '+selectedId:'';
-    return;
-  }
-  var ql=q.toLowerCase();
-  document.querySelectorAll('.gc-highlight').forEach(function(s){
-    var p=s.parentNode;p.replaceChild(document.createTextNode(s.textContent),s);p.normalize();
-  });
-  var matchCount=0;
-  allLi.forEach(function(li){li.classList.add('gc-hidden');});
-  allLi.forEach(function(li){
-    var labelEl=li.querySelector(':scope>.gc-node .gc-node-label,:scope>details>summary .gc-node-label');
-    if(!labelEl)return;
-    var text=labelEl.textContent||'';
-    if(text.toLowerCase().indexOf(ql)===-1)return;
-    matchCount++;
-    li.classList.remove('gc-hidden');
-    highlightText(labelEl,q);
-    var p=li.parentNode;
-    while(p&&p.id!=='gc-tree'){
-      if(p.tagName==='LI')p.classList.remove('gc-hidden');
-      if(p.tagName==='DETAILS')p.setAttribute('open','');
-      p=p.parentNode;
-    }
-  });
-  infoEl.textContent=matchCount+' result'+(matchCount!==1?'s':'');
-}
-
-function highlightText(el,q){
-  var text=el.textContent||'';
-  var idx=text.toLowerCase().indexOf(q.toLowerCase());
-  if(idx===-1)return;
-  var frag=document.createDocumentFragment();
-  frag.appendChild(document.createTextNode(text.slice(0,idx)));
-  var mark=document.createElement('mark');
-  mark.className='gc-highlight';
-  mark.textContent=text.slice(idx,idx+q.length);
-  frag.appendChild(mark);
-  frag.appendChild(document.createTextNode(text.slice(idx+q.length)));
-  el.textContent='';
-  el.appendChild(frag);
-}
-})();
-</script>
 HTML;
     }
 }

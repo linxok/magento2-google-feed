@@ -58,9 +58,9 @@ define([
         },
 
         openPickerModal: function () {
-            var self      = this,
-                storeId   = this._getStoreId(),
-                baseUrl   = this.pickerUrl || '',
+            var self       = this,
+                storeId    = this._getStoreId(),
+                baseUrl    = this.pickerUrl || '',
                 selectedId = this.value() || '',
                 sep        = baseUrl.indexOf('?') === -1 ? '?' : '&',
                 url        = baseUrl + sep
@@ -70,22 +70,15 @@ define([
             if (!this._modalContainer) {
                 this._modalContainer = $('<div id="gc-picker-modal-content"/>').appendTo('body');
 
-                this._modal = modal({
+                modal({
                     type: 'slide',
                     title: $t('Select Google Product Category'),
                     buttons: [],
                     closed: function () {
                         self._modalContainer.empty();
-                        window.gcOnPick = null;
                     }
                 }, this._modalContainer);
             }
-
-            window.gcOnPick = function (id, label) {
-                self.value(id);
-                self.displayLabel(label);
-                self._modalContainer.modal('closeModal');
-            };
 
             this._modalContainer
                 .html('<div style="padding:20px;text-align:center;color:#999;">' + $t('Loading...') + '</div>')
@@ -96,11 +89,87 @@ define([
                 type: 'GET',
                 success: function (html) {
                     self._modalContainer.html(html);
+                    self._bindPickerEvents();
                 },
                 error: function () {
-                    self._modalContainer.html('<div style="padding:20px;color:red;">' + $t('Failed to load categories.') + '</div>');
+                    self._modalContainer.html(
+                        '<div style="padding:20px;color:red;">' + $t('Failed to load categories.') + '</div>'
+                    );
                 }
             });
+        },
+
+        _bindPickerEvents: function () {
+            var self      = this,
+                container = this._modalContainer;
+
+            container.off('.gcpicker');
+
+            container.on('click.gcpicker', '.gc-pick-btn', function () {
+                var id    = String($(this).data('id')),
+                    label = String($(this).data('label'));
+
+                self.value(id);
+                self.displayLabel(label);
+                container.modal('closeModal');
+            });
+
+            container.on('input.gcpicker', '#gc-search', function () {
+                clearTimeout(self._searchTimer);
+                var q = $(this).val().trim();
+                self._searchTimer = setTimeout(function () {
+                    self._runSearch(q, container);
+                }, 150);
+            });
+        },
+
+        _runSearch: function (q, container) {
+            var allLi   = container.find('#gc-tree li'),
+                infoEl  = container.find('#gc-info');
+
+            container.find('.gc-highlight').each(function () {
+                var p = this.parentNode;
+                p.replaceChild(document.createTextNode(this.textContent), this);
+                p.normalize();
+            });
+
+            if (!q) {
+                allLi.removeClass('gc-hidden');
+                container.find('#gc-tree details').removeAttr('open');
+                infoEl.text('');
+                return;
+            }
+
+            var ql = q.toLowerCase(), count = 0;
+            allLi.addClass('gc-hidden');
+
+            allLi.each(function () {
+                var li      = $(this),
+                    labelEl = li.find('> .gc-node .gc-node-label, > details > summary .gc-node-label').first();
+
+                if (!labelEl.length) { return; }
+
+                var text = labelEl.text();
+                if (text.toLowerCase().indexOf(ql) === -1) { return; }
+
+                count++;
+                li.removeClass('gc-hidden');
+
+                var idx  = text.toLowerCase().indexOf(ql),
+                    mark = $('<mark class="gc-highlight"/>').text(text.slice(idx, idx + q.length)),
+                    frag = document.createDocumentFragment();
+
+                frag.appendChild(document.createTextNode(text.slice(0, idx)));
+                frag.appendChild(mark[0]);
+                frag.appendChild(document.createTextNode(text.slice(idx + q.length)));
+                labelEl[0].textContent = '';
+                labelEl[0].appendChild(frag);
+
+                li.parents('#gc-tree li').removeClass('gc-hidden');
+                li.parents('#gc-tree details').attr('open', '');
+            });
+
+            infoEl.text(count + ' result' + (count !== 1 ? 's' : ''));
         },
 
         clearValue: function () {

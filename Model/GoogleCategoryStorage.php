@@ -8,6 +8,16 @@ class GoogleCategoryStorage
     const TABLE_NAME = 'mycompany_googlefeed_taxonomy';
 
     /**
+     * @var array
+     */
+    private $optionsCache = [];
+
+    /**
+     * @var array
+     */
+    private $treeCache = [];
+
+    /**
      * @var ResourceConnection
      */
     private $resourceConnection;
@@ -101,6 +111,11 @@ class GoogleCategoryStorage
      */
     public function getOptionsByLocale($localeCode)
     {
+        $normalizedLocale = $this->normalizeLocaleCode($localeCode);
+        if (isset($this->optionsCache[$normalizedLocale])) {
+            return $this->optionsCache[$normalizedLocale];
+        }
+
         $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
         $connection = $this->resourceConnection->getConnection();
         $candidates = $this->getLocaleCandidates($localeCode);
@@ -116,8 +131,13 @@ class GoogleCategoryStorage
                 continue;
             }
 
-            return $this->buildHierarchicalOptions($rows);
+            $options = $this->buildHierarchicalOptions($rows);
+            $this->optionsCache[$normalizedLocale] = $options;
+
+            return $options;
         }
+
+        $this->optionsCache[$normalizedLocale] = [];
 
         return [];
     }
@@ -131,70 +151,58 @@ class GoogleCategoryStorage
     private function buildHierarchicalOptions(array $rows)
     {
         $categoriesById = [];
+        $childrenByParent = [];
+
         foreach ($rows as $row) {
-            $categoriesById[(int)$row['google_category_id']] = $row;
+            $id = (int)$row['google_category_id'];
+            $parentId = $row['parent_id'] !== null ? (int)$row['parent_id'] : 0;
+
+            $categoriesById[$id] = $row;
+            $childrenByParent[$parentId][] = $id;
         }
 
-        $tree = $this->buildTree($categoriesById, null);
-        
-        return $this->flattenTree($tree);
+        return $this->buildOptionListFromChildrenMap($categoriesById, $childrenByParent, 0, 0);
     }
 
     /**
-     * Build tree structure from flat array
+     * Build option list from children map (O(n))
      *
-     * @param array $categories
-     * @param int|null $parentId
-     * @return array
-     */
-    private function buildTree(array $categories, $parentId)
-    {
-        $branch = [];
-
-        foreach ($categories as $category) {
-            $categoryParentId = $category['parent_id'] !== null ? (int)$category['parent_id'] : null;
-            
-            if ($categoryParentId === $parentId) {
-                $children = $this->buildTree($categories, (int)$category['google_category_id']);
-                if ($children) {
-                    $category['children'] = $children;
-                }
-                $branch[] = $category;
-            }
-        }
-
-        return $branch;
-    }
-
-    /**
-     * Flatten tree to options array with indentation
-     *
-     * @param array $tree
+     * @param array $categoriesById
+     * @param array $childrenByParent
+     * @param int $parentId
      * @param int $level
-     * @param string $prefix
      * @return array
      */
-    private function flattenTree(array $tree, $level = 0, $prefix = '')
+    private function buildOptionListFromChildrenMap(array $categoriesById, array $childrenByParent, $parentId, $level)
     {
         $options = [];
 
-        foreach ($tree as $index => $node) {
-            $id = (int)$node['google_category_id'];
-            $name = (string)$node['category_name'];
-            
-            $currentPrefix = '';
-            if ($level > 0) {
-                $currentPrefix = str_repeat('    ', $level - 1);
-                $currentPrefix .= '└── ';
+        if (empty($childrenByParent[$parentId])) {
+            return $options;
+        }
+
+        foreach ($childrenByParent[$parentId] as $childId) {
+            if (!isset($categoriesById[$childId])) {
+                continue;
             }
-            
+
+            $category = $categoriesById[$childId];
+            $name = (string)$category['category_name'];
+            $prefix = $level > 0 ? str_repeat('    ', $level - 1) . '└── ' : '';
+
             $options[] = [
-                'value' => (string)$id,
-                'label' => sprintf('%s%s [%d]', $currentPrefix, $name, $id),
+                'value' => (string)$childId,
+                'label' => sprintf('%s%s [%d]', $prefix, $name, $childId),
             ];
 
-            if (!empty($node['children'])) {
-                $childOptions = $this->flattenTree($node['children'], $level + 1, $currentPrefix);
+            $childOptions = $this->buildOptionListFromChildrenMap(
+                $categoriesById,
+                $childrenByParent,
+                $childId,
+                $level + 1
+            );
+
+            if (!empty($childOptions)) {
                 $options = array_merge($options, $childOptions);
             }
         }
@@ -270,6 +278,11 @@ class GoogleCategoryStorage
      */
     public function getTreeByLocale($localeCode)
     {
+        $normalizedLocale = $this->normalizeLocaleCode($localeCode);
+        if (isset($this->treeCache[$normalizedLocale])) {
+            return $this->treeCache[$normalizedLocale];
+        }
+
         $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
         $connection = $this->resourceConnection->getConnection();
         $candidates = $this->getLocaleCandidates($localeCode);
@@ -286,44 +299,60 @@ class GoogleCategoryStorage
             }
 
             $categoriesById = [];
+            $childrenByParent = [];
+
             foreach ($rows as $row) {
-                $categoriesById[(int)$row['google_category_id']] = $row;
+                $id = (int)$row['google_category_id'];
+                $parentId = $row['parent_id'] !== null ? (int)$row['parent_id'] : 0;
+                $categoriesById[$id] = $row;
+                $childrenByParent[$parentId][] = $id;
             }
 
-            return $this->buildTreeStructure($categoriesById, null);
+            $tree = $this->buildTreeStructureFromChildrenMap($categoriesById, $childrenByParent, 0);
+            $this->treeCache[$normalizedLocale] = $tree;
+
+            return $tree;
         }
+
+        $this->treeCache[$normalizedLocale] = [];
 
         return [];
     }
 
     /**
-     * Build tree structure for JSON response
+     * Build tree structure for JSON response (O(n))
      *
-     * @param array $categories
-     * @param int|null $parentId
+     * @param array $categoriesById
+     * @param array $childrenByParent
+     * @param int $parentId
      * @return array
      */
-    private function buildTreeStructure(array $categories, $parentId)
+    private function buildTreeStructureFromChildrenMap(array $categoriesById, array $childrenByParent, $parentId)
     {
         $branch = [];
 
-        foreach ($categories as $category) {
-            $categoryParentId = $category['parent_id'] !== null ? (int)$category['parent_id'] : null;
-            
-            if ($categoryParentId === $parentId) {
-                $node = [
-                    'value' => (string)$category['google_category_id'],
-                    'label' => $category['category_name'],
-                    'is_active' => true,
-                ];
+        if (empty($childrenByParent[$parentId])) {
+            return $branch;
+        }
 
-                $children = $this->buildTreeStructure($categories, (int)$category['google_category_id']);
-                if ($children) {
-                    $node['optgroup'] = $children;
-                }
-                
-                $branch[] = $node;
+        foreach ($childrenByParent[$parentId] as $childId) {
+            if (!isset($categoriesById[$childId])) {
+                continue;
             }
+
+            $category = $categoriesById[$childId];
+            $node = [
+                'value' => (string)$childId,
+                'label' => (string)$category['category_name'],
+                'is_active' => true,
+            ];
+
+            $children = $this->buildTreeStructureFromChildrenMap($categoriesById, $childrenByParent, $childId);
+            if (!empty($children)) {
+                $node['optgroup'] = $children;
+            }
+
+            $branch[] = $node;
         }
 
         return $branch;

@@ -1,8 +1,9 @@
 define([
     'Magento_Ui/js/form/element/ui-select',
     'jquery',
-    'mage/translate'
-], function (UiSelect, $, $t) {
+    'mage/translate',
+    'underscore'
+], function (UiSelect, $, $t, _) {
     'use strict';
 
     return UiSelect.extend({
@@ -11,10 +12,9 @@ define([
             chipsEnabled: false,
             disableLabel: true,
             levelsVisibility: 1,
-            elementTmpl: 'ui/grid/filters/elements/ui-select',
-            listens: {
-                value: 'onValueChange'
-            }
+            openLevelsAction: true,
+            closeLevelsAction: true,
+            elementTmpl: 'ui/grid/filters/elements/ui-select'
         },
 
         /**
@@ -42,14 +42,54 @@ define([
                 showLoader: true,
                 success: function (response) {
                     if (response && response.length > 0) {
-                        self.options(response);
-                        self.cacheOptions.tree = response;
+                        var flatOptions = self.flattenTree(response);
+                        self.setOptions(flatOptions);
+                        self.cacheOptions.plain = flatOptions;
                     }
                 },
                 error: function (xhr, status, error) {
                     console.error('Failed to load Google Product Category tree:', error);
                 }
             });
+        },
+
+        /**
+         * Flatten tree structure to plain list with indentation
+         */
+        flattenTree: function (tree, level, parentPath) {
+            var options = [],
+                self = this;
+            
+            level = level || 0;
+            parentPath = parentPath || '';
+            
+            _.each(tree, function (node) {
+                var indent = new Array(level + 1).join('    '),
+                    currentPath = parentPath ? parentPath + '/' + node.label : node.label,
+                    option = {
+                        value: node.value,
+                        label: indent + node.label,
+                        level: level,
+                        path: currentPath
+                    };
+                
+                options.push(option);
+                
+                if (node.optgroup && node.optgroup.length > 0) {
+                    options = options.concat(self.flattenTree(node.optgroup, level + 1, currentPath));
+                }
+            });
+            
+            return options;
+        },
+
+        /**
+         * Set options
+         */
+        setOptions: function (options) {
+            this.options(options);
+            
+            return this;
         },
 
         /**
@@ -67,12 +107,8 @@ define([
         },
 
         /**
-         * Handle value change
+         * Keep default value handling from ui-select for better performance.
          */
-        onValueChange: function (value) {
-            if (value) {
-                this.filterOptionsList();
-            }
-        }
+        onValueChange: function () {}
     });
 });

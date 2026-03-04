@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <form xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Ui:etc/ui_configuration.xsd">
     <fieldset name="display_settings">
-        <field name="mycompany_google_product_category" sortOrder="50" formElement="select">
+        <field name="mycompany_google_product_category" sortOrder="50" formElement="select" component="MyCompany_GoogleFeed/js/form/element/google-category-tree">
             <argument name="data" xsi:type="array">
                 <item name="config" xsi:type="array">
                     <item name="source" xsi:type="string">category</item>
+                    <item name="pickerUrl" xsi:type="url" path="googlefeed/category/picker"/>
                 </item>
             </argument>
             <settings>

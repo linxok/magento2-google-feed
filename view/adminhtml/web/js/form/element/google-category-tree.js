@@ -1,95 +1,66 @@
 define([
-    'Magento_Ui/js/form/element/ui-select',
+    'Magento_Ui/js/form/element/select',
     'jquery',
-    'mage/translate',
-    'underscore'
-], function (UiSelect, $, $t, _) {
+    'mage/translate'
+], function (Select, $, $t) {
     'use strict';
 
-    return UiSelect.extend({
-        defaults: {
-            filterOptions: true,
-            chipsEnabled: false,
-            disableLabel: true,
-            levelsVisibility: 1,
-            openLevelsAction: true,
-            closeLevelsAction: true,
-            elementTmpl: 'ui/grid/filters/elements/ui-select'
-        },
+    return Select.extend({
 
         /**
          * Initialize component
          */
         initialize: function () {
             this._super();
-            this.loadCategoryTree();
+            this.addPickerButton();
             return this;
         },
 
         /**
-         * Load category tree from backend
+         * Add lightweight popup picker button near current field
          */
-        loadCategoryTree: function () {
+        addPickerButton: function () {
             var self = this;
-            
-            $.ajax({
-                url: this.treeUrl,
-                type: 'GET',
-                dataType: 'json',
-                data: {
-                    store: this.getStoreId()
-                },
-                showLoader: true,
-                success: function (response) {
-                    if (response && response.length > 0) {
-                        var flatOptions = self.flattenTree(response);
-                        self.setOptions(flatOptions);
-                        self.cacheOptions.plain = flatOptions;
+
+            window.setTimeout(function () {
+                var fieldContainer = $('[data-index="' + self.index + '"] .admin__field-control').first(),
+                    buttonClass = 'mycompany-google-category-picker-btn';
+
+                if (!fieldContainer.length || fieldContainer.find('.' + buttonClass).length) {
+                    return;
+                }
+
+                $('<button/>', {
+                    type: 'button',
+                    'class': 'action-default scalable ' + buttonClass,
+                    text: $t('Open Tree Picker'),
+                    css: {
+                        marginLeft: '10px'
                     }
-                },
-                error: function (xhr, status, error) {
-                    console.error('Failed to load Google Product Category tree:', error);
-                }
-            });
+                }).on('click', function () {
+                    self.openPickerWindow();
+                }).appendTo(fieldContainer);
+            }, 250);
         },
 
         /**
-         * Flatten tree structure to plain list with indentation
+         * Open separate picker window rendered by PHP controller
          */
-        flattenTree: function (tree, level, parentPath) {
-            var options = [],
-                self = this;
-            
-            level = level || 0;
-            parentPath = parentPath || '';
-            
-            _.each(tree, function (node) {
-                var indent = new Array(level + 1).join('    '),
-                    currentPath = parentPath ? parentPath + '/' + node.label : node.label,
-                    option = {
-                        value: node.value,
-                        label: indent + node.label,
-                        level: level,
-                        path: currentPath
-                    };
-                
-                options.push(option);
-                
-                if (node.optgroup && node.optgroup.length > 0) {
-                    options = options.concat(self.flattenTree(node.optgroup, level + 1, currentPath));
-                }
-            });
-            
-            return options;
-        },
+        openPickerWindow: function () {
+            var storeId = this.getStoreId(),
+                inputName = this.inputName || 'category[mycompany_google_product_category]',
+                baseUrl = this.pickerUrl || 'googlefeed/category/picker',
+                selectedId = this.value && typeof this.value === 'function' ? this.value() : '',
+                separator = baseUrl.indexOf('?') === -1 ? '?' : '&',
+                url = baseUrl
+                    + separator + 'store=' + encodeURIComponent(storeId)
+                    + '&field=' + encodeURIComponent(inputName)
+                    + '&selected=' + encodeURIComponent(selectedId || ''),
+                pickerWindow = window.open(url, 'mycompany_google_category_picker', 'width=980,height=700,resizable=yes,scrollbars=yes');
 
-        /**
-         * Set options
-         */
-        setOptions: function (options) {
-            this.options(options);
-            
-            return this;
+            if (pickerWindow) {
+                pickerWindow.focus();
+            }
         },
 
         /**
@@ -104,11 +75,6 @@ define([
             }
             
             return storeId;
-        },
-
-        /**
-         * Keep default value handling from ui-select for better performance.
-         */
-        onValueChange: function () {}
+        }
     });
 });

@@ -54,6 +54,29 @@ define([
         initialize: function () {
             injectTemplate();
             this._super();
+
+            var self = this;
+
+            if (self.value()) {
+                var storeId = self._getStoreId(),
+                    baseUrl = self.pickerUrl || '',
+                    sep     = baseUrl.indexOf('?') === -1 ? '?' : '&',
+                    url     = baseUrl + sep
+                        + 'store=' + encodeURIComponent(storeId)
+                        + '&selected=' + encodeURIComponent(self.value())
+                        + '&label_only=1';
+
+                $.ajax({
+                    url: url,
+                    type: 'GET',
+                    success: function (label) {
+                        if (label) {
+                            self.displayLabel(label.trim());
+                        }
+                    }
+                });
+            }
+
             return this;
         },
 

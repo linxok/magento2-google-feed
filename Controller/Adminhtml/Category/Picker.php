@@ -50,8 +50,9 @@ class Picker extends Action implements HttpGetActionInterface
 
     public function execute()
     {
-        $storeId = (int)$this->getRequest()->getParam('store', 0);
+        $storeId    = (int)$this->getRequest()->getParam('store', 0);
         $selectedId = (int)$this->getRequest()->getParam('selected', 0);
+        $labelOnly  = (bool)$this->getRequest()->getParam('label_only', 0);
 
         $locale = (string)$this->scopeConfig->getValue(
             'general/locale/code',
@@ -61,12 +62,41 @@ class Picker extends Action implements HttpGetActionInterface
 
         $tree = $this->googleCategoryStorage->getTreeByLocale($locale ?: 'en_US');
 
-        $html = $this->renderHtml($tree, $selectedId);
-
         $result = $this->rawFactory->create();
+
+        if ($labelOnly && $selectedId > 0) {
+            $label = $this->findLabelById($tree, $selectedId) ?? '';
+            $result->setHeader('Content-Type', 'text/plain; charset=UTF-8', true);
+            return $result->setContents($label);
+        }
+
+        $html = $this->renderHtml($tree, $selectedId);
         $result->setHeader('Content-Type', 'text/html; charset=UTF-8', true);
 
         return $result->setContents($html);
+    }
+
+    /**
+     * Recursively find label by category ID
+     *
+     * @param array $nodes
+     * @param int $id
+     * @return string|null
+     */
+    private function findLabelById(array $nodes, int $id): ?string
+    {
+        foreach ($nodes as $node) {
+            if ((int)$node['value'] === $id) {
+                return (string)$node['label'];
+            }
+            if (!empty($node['optgroup'])) {
+                $found = $this->findLabelById($node['optgroup'], $id);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
     }
 
     /**

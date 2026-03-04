@@ -2,10 +2,8 @@
 namespace MyCompany\GoogleFeed\Setup\Patch\Data;
 
 use Magento\Catalog\Model\Category;
-use Magento\Catalog\Model\Product;
 use Magento\Catalog\Setup\CategorySetupFactory;
 use Magento\Eav\Model\Entity\Attribute\ScopedAttributeInterface;
-use Magento\Eav\Setup\EavSetupFactory;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
 use Magento\Framework\Setup\Patch\DataPatchInterface;
 
@@ -19,27 +17,19 @@ class AddGoogleCategoryAttributes implements DataPatchInterface
     private $moduleDataSetup;
 
     /**
-     * @var EavSetupFactory
-     */
-    private $eavSetupFactory;
-
-    /**
      * @var CategorySetupFactory
      */
     private $categorySetupFactory;
 
     /**
      * @param ModuleDataSetupInterface $moduleDataSetup
-     * @param EavSetupFactory $eavSetupFactory
      * @param CategorySetupFactory $categorySetupFactory
      */
     public function __construct(
         ModuleDataSetupInterface $moduleDataSetup,
-        EavSetupFactory $eavSetupFactory,
         CategorySetupFactory $categorySetupFactory
     ) {
         $this->moduleDataSetup = $moduleDataSetup;
-        $this->eavSetupFactory = $eavSetupFactory;
         $this->categorySetupFactory = $categorySetupFactory;
     }
 
@@ -51,27 +41,7 @@ class AddGoogleCategoryAttributes implements DataPatchInterface
         $setup = $this->moduleDataSetup;
         $setup->startSetup();
 
-        $eavSetup = $this->eavSetupFactory->create(['setup' => $setup]);
         $categorySetup = $this->categorySetupFactory->create(['setup' => $setup]);
-
-        if (!$eavSetup->getAttributeId(Product::ENTITY, self::ATTRIBUTE_CODE)) {
-            $eavSetup->addAttribute(
-                Product::ENTITY,
-                self::ATTRIBUTE_CODE,
-                [
-                    'type' => 'varchar',
-                    'label' => 'Google Product Category',
-                    'input' => 'select',
-                    'source' => 'MyCompany\\GoogleFeed\\Model\\Category\\Attribute\\Source\\GoogleProductCategory',
-                    'required' => false,
-                    'sort_order' => 210,
-                    'global' => ScopedAttributeInterface::SCOPE_STORE,
-                    'visible' => true,
-                    'user_defined' => true,
-                    'group' => 'Product Details',
-                ]
-            );
-        }
 
         if (!$categorySetup->getAttributeId(Category::ENTITY, self::ATTRIBUTE_CODE)) {
             $categorySetup->addAttribute(

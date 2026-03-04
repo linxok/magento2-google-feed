@@ -494,22 +494,13 @@ class FeedGenerator
     }
 
     /**
-     * Resolve Google category value from product and category fallback
+     * Resolve Google category value from product categories (with parent inheritance)
      *
      * @param \Magento\Catalog\Model\Product $product
      * @return string|null
      */
     protected function resolveGoogleCategoryValue($product)
     {
-        $attributeCodes = [self::GOOGLE_CATEGORY_ATTRIBUTE_CODE];
-
-        foreach ($attributeCodes as $attributeCode) {
-            $value = $product->getData($attributeCode);
-            if ($value !== null && $value !== '') {
-                return (string)$value;
-            }
-        }
-
         return $this->getGoogleCategoryFromCategories($product->getCategoryIds());
     }
 

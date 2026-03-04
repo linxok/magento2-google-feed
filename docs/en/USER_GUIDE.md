@@ -6,12 +6,11 @@
 2. [Module Configuration](#2-module-configuration)
 3. [Working with Google Product Categories](#3-working-with-google-product-categories)
 4. [Assigning Categories to Magento Categories](#4-assigning-categories-to-magento-categories)
-5. [Assigning Categories to Products](#5-assigning-categories-to-products)
-6. [Working with the Feed](#6-working-with-the-feed)
-7. [Multi-Store Setup](#7-multi-store-setup)
-8. [Automated Feed Generation (Cron)](#8-automated-feed-generation-cron)
-9. [Attribute Mapping](#9-attribute-mapping)
-10. [Troubleshooting](#10-troubleshooting)
+5. [Working with the Feed](#5-working-with-the-feed)
+6. [Multi-Store Setup](#6-multi-store-setup)
+7. [Automated Feed Generation (Cron)](#7-automated-feed-generation-cron)
+8. [Attribute Mapping](#8-attribute-mapping)
+9. [Troubleshooting](#9-troubleshooting)
 
 ---
 
@@ -123,18 +122,16 @@ After running `import-taxonomy`, categories are stored in the database table `my
 
 ### Inheritance rules
 
-The module automatically resolves which Google Product Category to use for each product using this priority chain (highest wins):
+The module automatically resolves which Google Product Category to use for each product by walking up the category tree:
 
 ```
-1. Product's own Google Product Category attribute
+1. Product's direct category Google Product Category
         ↓ (if not set)
-2. Product's direct category Google Product Category
-        ↓ (if not set)
-3. Parent category's Google Product Category
+2. Parent category's Google Product Category
         ↓ (if not set, traverses up the category tree)
-4. Grandparent category → ... → Root category
+3. Grandparent category → ... → Root category
         ↓ (if nothing found)
-5. Field omitted from feed
+4. Field omitted from feed
 ```
 
 **Example:**
@@ -144,7 +141,7 @@ Electronics [Google Category: 222 — Electronics]
   └─ Phones [Google Category: 267 — Mobile Phones]
       └─ Smartphones [No assignment → inherits 267]
           └─ Product A [No assignment → inherits 267]
-          └─ Product B [Google Category: 268 — Smartphones → uses own]
+          └─ Product B [No assignment → inherits 267]
 ```
 
 ---
@@ -176,27 +173,7 @@ This sets the Google Product Category at the category level. All products in thi
 
 ---
 
-## 5. Assigning Categories to Products
-
-You can assign a Google Product Category directly to an individual product. This overrides any category-level assignment.
-
-### Step-by-step
-
-1. Go to **Catalog → Products**
-2. Open any product for editing
-3. Go to the **General** or **Search Engine Optimization** tab (depending on your Magento version and configuration)
-4. Find the **Google Product Category** attribute
-5. Click **Select Category** and use the picker (same as in categories)
-6. Click **Save** to save the product
-
-> **When to use product-level assignment:**
-> - The product belongs to a category with a general assignment but needs a more specific one
-> - The product doesn't fit neatly into any of its category's Google categories
-> - You want to override inheritance for a specific product
-
----
-
-## 6. Working with the Feed
+## 5. Working with the Feed
 
 ### Viewing the Feed (Direct URL)
 
@@ -242,7 +219,7 @@ This downloads the XML feed for the currently selected store view.
 
 ---
 
-## 7. Multi-Store Setup
+## 6. Multi-Store Setup
 
 Each store view gets its own feed with localized content (product names, descriptions, URLs, prices).
 
@@ -274,7 +251,7 @@ Each store view gets its own feed with localized content (product names, descrip
 
 ---
 
-## 8. Automated Feed Generation (Cron)
+## 7. Automated Feed Generation (Cron)
 
 Configure in: **Stores → Configuration → MyCompany → Google Feed → Automatic Generation**
 
@@ -296,7 +273,7 @@ Then check `var/log/system.log` for entries related to `GoogleFeed`.
 
 ---
 
-## 9. Attribute Mapping
+## 8. Attribute Mapping
 
 Configure in: **Stores → Configuration → MyCompany → Google Feed → Product Attributes Mapping**
 
@@ -322,7 +299,7 @@ All fields use **dropdown selection** — you choose from existing Magento produ
 
 ---
 
-## 10. Troubleshooting
+## 9. Troubleshooting
 
 ### Feed is empty
 - Check that **Enable Google Feed** is set to **Yes** for the store view
@@ -330,7 +307,7 @@ All fields use **dropdown selection** — you choose from existing Magento produ
 - Check **Include Categories** filter — if set, only those categories are exported
 - Verify **Minimum/Maximum Price** filters don't exclude all products
 
-### Google Product Category not showing in category/product form
+### Google Product Category not showing in category form
 ```bash
 php bin/magento cache:flush
 php bin/magento mycompany:googlefeed:import-taxonomy
@@ -341,9 +318,8 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 - Run: `php bin/magento mycompany:googlefeed:import-taxonomy`
 - Check the database: `SELECT COUNT(*) FROM mycompany_googlefeed_taxonomy;`
 
-### Saved Google Product Category not showing on form reload
-- This is resolved in the current version — the label is fetched automatically on form load
-- If still occurring, flush cache: `php bin/magento cache:flush`
+### Saved Google Product Category not showing on category form reload
+- Flush cache: `php bin/magento cache:flush`
 
 ### Feed shows wrong language
 - Make sure you're accessing the feed with the correct store code: `?store=uk`

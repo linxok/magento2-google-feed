@@ -28,7 +28,8 @@ class ProductAttributes implements OptionSourceInterface
     public function toOptionArray()
     {
         $options = [
-            ['value' => '', 'label' => __('-- Please Select --')]
+            ['value' => '', 'label' => __('-- Please Select --')],
+            ['value' => 'sku', 'label' => __('SKU (sku)')]
         ];
 
         $collection = $this->attributeCollectionFactory->create();
@@ -38,7 +39,7 @@ class ProductAttributes implements OptionSourceInterface
         foreach ($collection as $attribute) {
             $options[] = [
                 'value' => $attribute->getAttributeCode(),
-                'label' => $attribute->getFrontendLabel() 
+                'label' => $attribute->getFrontendLabel()
                     ? $attribute->getFrontendLabel() . ' (' . $attribute->getAttributeCode() . ')'
                     : $attribute->getAttributeCode()
             ];

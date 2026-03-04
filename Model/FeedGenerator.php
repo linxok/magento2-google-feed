@@ -170,6 +170,9 @@ class FeedGenerator
             'url_key'
         ]);
         
+        // Add media gallery to load additional images
+        $collection->addMediaGalleryData();
+        
         // Filter by status - enabled only
         $collection->addAttributeToFilter('status', 1);
         

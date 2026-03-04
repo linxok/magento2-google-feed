@@ -1,0 +1,18 @@
+<?php
+/** @var \MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\ImportGoogleCategory $block */
+?>
+<div style="padding: 12px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px;">
+    <form action="<?= $block->escapeUrl($block->getData('import_url')) ?>" method="post">
+        <?= $block->getBlockHtml('formkey') ?>
+        <input type="hidden" name="store" value="<?= (int)$block->getData('store') ?>" />
+        <input type="hidden" name="website" value="<?= (int)$block->getData('website') ?>" />
+
+        <button type="submit" class="action-primary">
+            <span><?= $block->escapeHtml($block->getData('button_label')) ?></span>
+        </button>
+    </form>
+
+    <p style="margin: 8px 0 0; color: #666;">
+        <?= $block->escapeHtml(__('Downloads taxonomy from Google for current store locale and refreshes local table.')) ?>
+    </p>
+</div>

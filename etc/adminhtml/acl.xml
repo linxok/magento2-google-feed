@@ -19,6 +19,7 @@
                 <resource id="MyCompany_GoogleFeed::googlefeed" title="Google Feed" sortOrder="10">
                     <resource id="MyCompany_GoogleFeed::feed_view" title="View Feed" sortOrder="10" />
                     <resource id="MyCompany_GoogleFeed::feed_generate" title="Generate Feed" sortOrder="20" />
+                    <resource id="MyCompany_GoogleFeed::taxonomy_import" title="Import Google Taxonomy" sortOrder="30" />
                 </resource>
             </resource>
         </resources>

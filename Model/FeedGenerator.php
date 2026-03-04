@@ -22,6 +22,8 @@ use Psr\Log\LoggerInterface;
 
 class FeedGenerator
 {
+    const GOOGLE_CATEGORY_ATTRIBUTE_CODE = 'mycompany_google_product_category';
+
     /**
      * @var CollectionFactory
      */
@@ -73,6 +75,11 @@ class FeedGenerator
     protected $categoryRepository;
 
     /**
+     * @var GoogleCategoryStorage
+     */
+    protected $googleCategoryStorage;
+
+    /**
      * FeedGenerator constructor.
      * @param CollectionFactory $productCollectionFactory
      * @param Image $imageHelper
@@ -83,6 +90,7 @@ class FeedGenerator
      * @param ProductRepositoryInterface $productRepository
      * @param CategoryRepositoryInterface $categoryRepository
      * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
+     * @param GoogleCategoryStorage $googleCategoryStorage
      * @param LoggerInterface $logger
      */
     public function __construct(
@@ -95,6 +103,7 @@ class FeedGenerator
         ProductRepositoryInterface $productRepository,
         CategoryRepositoryInterface $categoryRepository,
         SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
+        GoogleCategoryStorage $googleCategoryStorage,
         LoggerInterface $logger
     ) {
         $this->productCollectionFactory = $productCollectionFactory;
@@ -106,6 +115,7 @@ class FeedGenerator
         $this->productRepository = $productRepository;
         $this->categoryRepository = $categoryRepository;
         $this->searchCriteriaBuilderFactory = $searchCriteriaBuilderFactory;
+        $this->googleCategoryStorage = $googleCategoryStorage;
         $this->logger = $logger;
     }
 
@@ -373,9 +383,12 @@ class FeedGenerator
         $xml->writeElement('g:condition', $this->sanitizeXmlValue($condition));
         
         // Google Product Category
-        $googleCategoryAttribute = $this->getConfigValue('googlefeed/attributes/google_category_attribute');
-        if ($googleCategoryAttribute && $product->getData($googleCategoryAttribute)) {
-            $xml->writeElement('g:google_product_category', $this->sanitizeXmlValue($product->getData($googleCategoryAttribute)));
+        $googleCategoryValue = $this->resolveGoogleCategoryValue($product);
+        if ($googleCategoryValue !== null && $googleCategoryValue !== '') {
+            $xml->writeElement(
+                'g:google_product_category',
+                $this->sanitizeXmlValue($this->mapGoogleCategoryValueForFeed($googleCategoryValue))
+            );
         }
         
         // Product Type (Magento category)
@@ -478,6 +491,133 @@ class FeedGenerator
         }
         
         return implode(' > ', $categoryNames);
+    }
+
+    /**
+     * Resolve Google category value from product and category fallback
+     *
+     * @param \Magento\Catalog\Model\Product $product
+     * @return string|null
+     */
+    protected function resolveGoogleCategoryValue($product)
+    {
+        $attributeCodes = [self::GOOGLE_CATEGORY_ATTRIBUTE_CODE];
+
+        foreach ($attributeCodes as $attributeCode) {
+            $value = $product->getData($attributeCode);
+            if ($value !== null && $value !== '') {
+                return (string)$value;
+            }
+        }
+
+        return $this->getGoogleCategoryFromCategories($product->getCategoryIds());
+    }
+
+    /**
+     * Resolve Google category from assigned Magento categories
+     *
+     * @param array $categoryIds
+     * @return string|null
+     */
+    protected function getGoogleCategoryFromCategories(array $categoryIds)
+    {
+        if (empty($categoryIds)) {
+            return null;
+        }
+
+        $bestValue = null;
+        $bestSourceLevel = -1;
+
+        foreach ($categoryIds as $categoryId) {
+            try {
+                $category = $this->categoryRepository->get((int)$categoryId, $this->storeManager->getStore()->getId());
+                $resolved = $this->resolveCategoryGoogleCategoryValue($category);
+                if ($resolved === null) {
+                    continue;
+                }
+
+                if ((int)$resolved['source_level'] >= $bestSourceLevel) {
+                    $bestSourceLevel = (int)$resolved['source_level'];
+                    $bestValue = (string)$resolved['value'];
+                }
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        return $bestValue;
+    }
+
+    /**
+     * Resolve Google category value for category with parent inheritance
+     *
+     * @param \Magento\Catalog\Api\Data\CategoryInterface $category
+     * @return array|null
+     */
+    protected function resolveCategoryGoogleCategoryValue($category)
+    {
+        $pathIds = array_reverse(explode('/', (string)$category->getPath()));
+        $storeId = $this->storeManager->getStore()->getId();
+
+        foreach ($pathIds as $pathCategoryId) {
+            $pathCategoryId = (int)$pathCategoryId;
+            if ($pathCategoryId <= 1) {
+                continue;
+            }
+
+            try {
+                $pathCategory = $this->categoryRepository->get($pathCategoryId, $storeId);
+                $value = $pathCategory->getData(self::GOOGLE_CATEGORY_ATTRIBUTE_CODE);
+
+                if ($value !== null && $value !== '') {
+                    return [
+                        'value' => (string)$value,
+                        'source_level' => (int)$pathCategory->getLevel(),
+                    ];
+                }
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Convert taxonomy ID to localized path if available
+     *
+     * @param string $value
+     * @return string
+     */
+    protected function mapGoogleCategoryValueForFeed($value)
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (ctype_digit($value)) {
+            $path = $this->googleCategoryStorage->getPathById((int)$value, $this->getCurrentLocaleCode());
+            if ($path !== null && $path !== '') {
+                return $path;
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return string
+     */
+    protected function getCurrentLocaleCode()
+    {
+        $locale = (string)$this->scopeConfig->getValue(
+            'general/locale/code',
+            ScopeInterface::SCOPE_STORE,
+            $this->storeManager->getStore()->getId()
+        );
+
+        return $locale !== '' ? $locale : 'en_US';
     }
 
     /**

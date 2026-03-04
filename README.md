@@ -16,6 +16,8 @@ This module generates Google Shopping XML feeds for Magento 2 stores with full m
 - ✅ **Manual Generation** - Admin panel interface for on-demand feed file creation
 - ✅ **Advanced Filtering** - Filter products by categories, price range, stock status
 - ✅ **Attribute Mapping** - Dropdown selection for brand, GTIN, MPN, color, size, gender, age group
+- ✅ **Google Product Category Taxonomy** - Import and manage Google Product Categories with multi-language support
+- ✅ **Category-Level Assignment** - Assign Google Product Categories to Magento categories with inheritance
 - ✅ **File Management** - View and download generated feeds directly from admin panel
 - ✅ **Security** - XML injection prevention, URL validation, ACL permissions
 - ✅ **Performance** - Cache support for optimized feed generation
@@ -49,6 +51,9 @@ php bin/magento module:enable MyCompany_GoogleFeed
 php bin/magento setup:upgrade
 php bin/magento setup:di:compile
 php bin/magento cache:flush
+
+# Import Google Product Category Taxonomy (recommended after installation)
+php bin/magento mycompany:googlefeed:import-taxonomy
 ```
 
 ## Configuration
@@ -83,7 +88,51 @@ All fields use dropdown selection (no manual code entry):
 - **Size Attribute**: Product size
 - **Gender Attribute**: male/female/unisex
 - **Age Group Attribute**: Target age group
-- **Google Product Category Attribute**: Google category
+
+### Google Product Category Taxonomy
+
+The module supports Google Product Category assignment at both product and category levels with automatic inheritance.
+
+**Import Taxonomy:**
+```bash
+php bin/magento mycompany:googlefeed:import-taxonomy
+```
+
+This command:
+- Analyzes all store views and their locales
+- Downloads Google Product Category taxonomy for each unique language
+- Stores taxonomy in database with locale-specific versions
+- Shows detailed progress during import
+- Skips already processed locales
+
+**Category-Level Assignment:**
+1. Navigate to **Catalog → Categories**
+2. Select any category
+3. Expand **Display Settings** section
+4. Select **Google Product Category** from dropdown
+5. Save category
+
+**Inheritance Behavior:**
+- Child categories inherit Google Product Category from parent categories
+- Products inherit from their assigned categories
+- More specific assignments override inherited values:
+  - Product-level assignment > Category assignment > Parent category assignment
+- Deepest category level wins when product is in multiple categories
+
+**Assignment Priority (highest to lowest):**
+1. Product attribute `mycompany_google_product_category`
+2. Direct category assignment
+3. Parent category assignment (traverses up the tree)
+4. No value (field omitted from feed)
+
+**Example Hierarchy:**
+```
+Electronics [Google Category: 222]
+  └─ Phones [Google Category: 267] 
+      └─ Smartphones [No assignment - inherits 267]
+          └─ Product A [No assignment - inherits 267]
+          └─ Product B [Google Category: 268 - uses own value]
+```
 
 ### Automatic Generation (Cron)
 - **Enable Automatic Generation**: Enable scheduled feed generation
@@ -92,6 +141,49 @@ All fields use dropdown selection (no manual code entry):
 - **Generate Feeds for Stores**: Select specific stores or leave empty for all active stores
 - **Save Feed to File**: Base path (e.g., googlefeed/feed.xml) - store name, code, and language will be added automatically
 - **Generated Feed Files**: View and download all generated feed files directly from admin configuration
+
+## Console Commands
+
+### Import Google Product Category Taxonomy
+
+```bash
+php bin/magento mycompany:googlefeed:import-taxonomy
+```
+
+**What it does:**
+- Scans all store views in your Magento installation
+- Identifies unique locales (languages)
+- Downloads Google Product Category taxonomy from Google servers
+- Parses and stores taxonomy in database
+- Supports multiple languages (en-US, uk-UA, de-DE, etc.)
+- Shows detailed progress for each step
+
+**Example output:**
+```
+Starting Google Product Category Taxonomy import...
+
+Found 4 store view(s) to analyze
+
+[1/4] Store: English Store (ID: 1, Code: en)
+        Locale: en_US
+        Normalized locale: en-US
+        Fetching taxonomy... OK (5627 categories)
+        Saving to database... Done
+
+[2/4] Store: Ukrainian Store (ID: 2, Code: uk)
+        Locale: uk_UA
+        Normalized locale: uk-UA
+        Fetching taxonomy... OK (4832 categories)
+        Saving to database... Done
+
+Import completed!
+Processed 2 unique locale(s): en-US, uk-UA
+```
+
+**When to run:**
+- After module installation
+- When adding new store views with different languages
+- To update taxonomy with latest Google categories (run periodically)
 
 ## Usage
 
@@ -182,8 +274,9 @@ The module generates XML in Google Shopping format with all required and recomme
 - `g:brand` (product brand)
 - `g:gtin` (GTIN/UPC/EAN)
 - `g:mpn` (manufacturer part number)
-- `g:google_product_category` (Google category)
-- `g:product_type` (store category)
+- `g:google_product_category` (Google category with inheritance from categories)
+- `g:product_type` (store category path)
+- `g:additional_image_link` (additional product images)
 
 **Additional Fields (apparel):**
 - `g:color`, `g:size`, `g:gender`, `g:age_group`
@@ -229,6 +322,22 @@ The module generates XML in Google Shopping format with all required and recomme
 - Ensure attributes exist in catalog
 - Verify products have values for these attributes
 
+### Google Product Category not showing in categories
+- Run: `php bin/magento cache:flush`
+- Verify module is enabled
+- Check that `category_form.xml` exists in module
+- Import taxonomy first: `php bin/magento mycompany:googlefeed:import-taxonomy`
+
+### Google Product Category dropdown is empty
+- Import taxonomy: `php bin/magento mycompany:googlefeed:import-taxonomy`
+- Check that taxonomy was imported for your store locale
+- Verify database table `mycompany_googlefeed_taxonomy` has data
+
+### Google Product Category not appearing in feed
+- Assign category to product or product's category
+- Check inheritance chain (product → category → parent categories)
+- Verify taxonomy ID exists in database for current locale
+
 ### Products missing in localized feed
 - Check product visibility in specific store view
 - Verify category assignments for store view
@@ -260,6 +369,20 @@ The module generates XML in Google Shopping format with all required and recomme
 - Generate feeds for stores separately if needed
 
 ## Version History
+
+- **v1.0.3** (2026-03-04) - Google Product Category Taxonomy
+  - Added Google Product Category taxonomy import from Google servers
+  - Added console command `mycompany:googlefeed:import-taxonomy` for multi-language taxonomy import
+  - Added category-level Google Product Category assignment with UI component
+  - Added automatic inheritance from parent categories to child categories
+  - Added product-level Google Product Category attribute
+  - Added intelligent fallback: product → category → parent category chain
+  - Added `additional_image_link` support for product galleries
+  - Added `product_type` based on category hierarchy path
+  - Fixed deprecated `number_format()` null parameter warning
+  - Multi-language taxonomy support with locale normalization and fallback
+  - Database storage for taxonomy with unique locale-based indexing
+  - Removed admin panel import button (replaced with CLI command)
 
 - **v1.0.2** (2026-02-28) - Multi-store enhancement
   - Added automatic multi-store/multi-language feed generation

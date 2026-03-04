@@ -146,11 +146,6 @@
                     <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
                     <comment>Select the attribute for age group (newborn, infant, toddler, kids, adult)</comment>
                 </field>
-                <field id="google_category_attribute" translate="label" type="select" sortOrder="90" showInDefault="1" showInWebsite="1" showInStore="1">
-                    <label>Google Product Category Attribute</label>
-                    <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
-                    <comment>Select the attribute containing Google product category ID</comment>
-                </field>
             </group>
             <group id="cron" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
                 <label>Automatic Generation (Cron)</label>

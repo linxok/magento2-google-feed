@@ -35,7 +35,6 @@
                 <size_attribute></size_attribute>
                 <gender_attribute></gender_attribute>
                 <age_group_attribute></age_group_attribute>
-                <google_category_attribute></google_category_attribute>
             </attributes>
             <cron>
                 <enabled>0</enabled>

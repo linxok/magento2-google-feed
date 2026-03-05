@@ -395,10 +395,33 @@ class FeedGenerator
         $categoryIds = $product->getCategoryIds();
         if (!empty($categoryIds)) {
             try {
-                $categoryId = end($categoryIds);
-                $category = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
-                if ($category && $category->getName()) {
-                    $categoryPath = $this->getCategoryPath($category);
+                $storeId = $this->storeManager->getStore()->getId();
+                $rootCategoryId = $this->storeManager->getStore()->getRootCategoryId();
+                
+                // Filter categories by current store's root category tree
+                $validCategory = null;
+                $maxLevel = 0;
+                
+                foreach ($categoryIds as $categoryId) {
+                    try {
+                        $category = $this->categoryRepository->get($categoryId, $storeId);
+                        $pathIds = explode('/', $category->getPath());
+                        
+                        // Check if category belongs to current store's root category
+                        if (in_array($rootCategoryId, $pathIds)) {
+                            // Select the deepest category (most specific)
+                            if ($category->getLevel() > $maxLevel) {
+                                $maxLevel = $category->getLevel();
+                                $validCategory = $category;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+                }
+                
+                if ($validCategory && $validCategory->getName()) {
+                    $categoryPath = $this->getCategoryPath($validCategory);
                     $xml->writeElement('g:product_type', $this->sanitizeXmlValue($categoryPath));
                 }
             } catch (\Exception $e) {
@@ -474,9 +497,10 @@ class FeedGenerator
     {
         $pathIds = explode('/', $category->getPath());
         $categoryNames = [];
+        $rootCategoryId = $this->storeManager->getStore()->getRootCategoryId();
         
         foreach ($pathIds as $categoryId) {
-            if ($categoryId <= 2) {
+            if ($categoryId <= 1 || $categoryId == $rootCategoryId) {
                 continue;
             }
             

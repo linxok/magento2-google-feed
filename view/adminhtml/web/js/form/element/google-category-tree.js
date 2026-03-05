@@ -57,27 +57,43 @@ define([
 
             var self = this;
 
-            if (self.value()) {
-                var storeId = self._getStoreId(),
-                    baseUrl = self.pickerUrl || '',
-                    sep     = baseUrl.indexOf('?') === -1 ? '?' : '&',
-                    url     = baseUrl + sep
-                        + 'store=' + encodeURIComponent(storeId)
-                        + '&selected=' + encodeURIComponent(self.value())
-                        + '&label_only=1';
+            // Load initial label
+            this._loadLabel();
 
-                $.ajax({
-                    url: url,
-                    type: 'GET',
-                    success: function (label) {
-                        if (label) {
-                            self.displayLabel(label.trim());
-                        }
-                    }
-                });
-            }
+            // Listen for store switcher changes
+            $(document).on('change', '[data-role="stores-list"]', function () {
+                if (self.value()) {
+                    self._loadLabel();
+                }
+            });
 
             return this;
+        },
+
+        _loadLabel: function () {
+            var self = this;
+            
+            if (!self.value()) {
+                return;
+            }
+
+            var storeId = self._getStoreId(),
+                baseUrl = self.pickerUrl || '',
+                sep     = baseUrl.indexOf('?') === -1 ? '?' : '&',
+                url     = baseUrl + sep
+                    + 'store=' + encodeURIComponent(storeId)
+                    + '&selected=' + encodeURIComponent(self.value())
+                    + '&label_only=1';
+
+            $.ajax({
+                url: url,
+                type: 'GET',
+                success: function (label) {
+                    if (label) {
+                        self.displayLabel(label.trim());
+                    }
+                }
+            });
         },
 
         openPickerModal: function () {
@@ -201,11 +217,35 @@ define([
         },
 
         _getStoreId: function () {
-            var m = window.location.href.match(/[?&]store=(\d+)/);
-            if (m) { return m[1]; }
-            m = window.location.href.match(/\/store\/(\d+)/);
-            if (m) { return m[1]; }
-            return 0;
+            var storeValue = null;
+            
+            // Try to get store from Magento store switcher
+            var storeSwitcher = $('[data-role="stores-list"]');
+            if (storeSwitcher.length) {
+                storeValue = storeSwitcher.val();
+                console.log('Google Category Picker - Store from switcher:', storeValue);
+            }
+            
+            // Fallback: try URL parameters (both ID and code)
+            if (!storeValue) {
+                var m = window.location.href.match(/[?&]store=([^&]+)/);
+                if (m) { 
+                    storeValue = m[1];
+                    console.log('Google Category Picker - Store from URL:', storeValue);
+                }
+            }
+            
+            // Fallback: try store_id input field (category form)
+            if (!storeValue) {
+                var storeInput = $('input[name="store_id"]');
+                if (storeInput.length && storeInput.val()) {
+                    storeValue = storeInput.val();
+                    console.log('Google Category Picker - Store from input:', storeValue);
+                }
+            }
+            
+            // Return the value (can be ID or code - server will handle both)
+            return storeValue || 0;
         }
     });
 });

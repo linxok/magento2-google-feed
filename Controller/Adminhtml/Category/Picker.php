@@ -8,6 +8,7 @@ use Magento\Framework\Controller\Result\RawFactory;
 use Magento\Framework\Escaper;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\ScopeInterface;
+use Magento\Store\Model\StoreManagerInterface;
 use MyCompany\GoogleFeed\Model\GoogleCategoryStorage;
 
 class Picker extends Action implements HttpGetActionInterface
@@ -34,31 +35,47 @@ class Picker extends Action implements HttpGetActionInterface
      */
     private $escaper;
 
+    /**
+     * @var StoreManagerInterface
+     */
+    private $storeManager;
+
     public function __construct(
         Context $context,
         RawFactory $rawFactory,
         GoogleCategoryStorage $googleCategoryStorage,
         ScopeConfigInterface $scopeConfig,
-        Escaper $escaper
+        Escaper $escaper,
+        StoreManagerInterface $storeManager
     ) {
         parent::__construct($context);
         $this->rawFactory = $rawFactory;
         $this->googleCategoryStorage = $googleCategoryStorage;
         $this->scopeConfig = $scopeConfig;
         $this->escaper = $escaper;
+        $this->storeManager = $storeManager;
     }
 
     public function execute()
     {
-        $storeId    = (int)$this->getRequest()->getParam('store', 0);
+        $storeParam = $this->getRequest()->getParam('store', 0);
         $selectedId = (int)$this->getRequest()->getParam('selected', 0);
         $labelOnly  = (bool)$this->getRequest()->getParam('label_only', 0);
+
+        // Convert store code to ID if needed
+        $storeId = $this->resolveStoreId($storeParam);
 
         $locale = (string)$this->scopeConfig->getValue(
             'general/locale/code',
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
+
+        // Debug logging
+        $writer = new \Zend_Log_Writer_Stream(BP . '/var/log/googlefeed_picker.log');
+        $logger = new \Zend_Log();
+        $logger->addWriter($writer);
+        $logger->info('Picker Debug - Store Param: ' . $storeParam . ', Store ID: ' . $storeId . ', Locale: ' . $locale . ', Selected: ' . $selectedId);
 
         $tree = $this->googleCategoryStorage->getTreeByLocale($locale ?: 'en_US');
 
@@ -147,6 +164,32 @@ class Picker extends Action implements HttpGetActionInterface
         $html .= '</ul>';
 
         return $html;
+    }
+
+    /**
+     * Resolve store ID from parameter (can be ID or code)
+     *
+     * @param mixed $storeParam
+     * @return int
+     */
+    private function resolveStoreId($storeParam)
+    {
+        if (empty($storeParam)) {
+            return 0;
+        }
+
+        // If it's already a numeric ID, return it
+        if (is_numeric($storeParam)) {
+            return (int)$storeParam;
+        }
+
+        // Try to get store by code
+        try {
+            $store = $this->storeManager->getStore($storeParam);
+            return (int)$store->getId();
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     /**

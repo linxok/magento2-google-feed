@@ -147,6 +147,32 @@
                     <comment>Select the attribute for age group (newborn, infant, toddler, kids, adult)</comment>
                 </field>
             </group>
+            <group id="taxonomy" translate="label" type="text" sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Google Product Category Taxonomy</label>
+                <field id="taxonomy_url" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Taxonomy URL Pattern</label>
+                    <comment><![CDATA[URL pattern for downloading Google Product Category taxonomy. Use <strong>%s</strong> as placeholder for locale code (e.g., en-US, uk-UA). Default: https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt]]></comment>
+                    <validate>required-entry</validate>
+                </field>
+                <field id="custom_taxonomy_urls" translate="label comment" type="textarea" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Custom Taxonomy URLs (Advanced)</label>
+                    <comment><![CDATA[Override taxonomy URL for specific locales. Format: one per line as <strong>locale_code=URL</strong><br/>
+Example:<br/>
+uk-UA=https://example.com/custom-taxonomy-uk.txt<br/>
+de-DE=https://example.com/custom-taxonomy-de.txt<br/>
+Leave empty to use URL pattern above.]]></comment>
+                </field>
+                <field id="fallback_locale" translate="label comment" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Fallback Locale</label>
+                    <comment>Locale to use if taxonomy is not available for store's locale (default: en-US)</comment>
+                    <validate>required-entry</validate>
+                </field>
+                <field id="cache_lifetime" translate="label comment" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Cache Lifetime (hours)</label>
+                    <comment>How long to cache taxonomy data before re-downloading (0 = no cache)</comment>
+                    <validate>validate-number validate-zero-or-greater</validate>
+                </field>
+            </group>
             <group id="cron" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
                 <label>Automatic Generation (Cron)</label>
                 <field id="enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">

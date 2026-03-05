@@ -36,6 +36,12 @@
                 <gender_attribute></gender_attribute>
                 <age_group_attribute></age_group_attribute>
             </attributes>
+            <taxonomy>
+                <taxonomy_url>https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt</taxonomy_url>
+                <custom_taxonomy_urls></custom_taxonomy_urls>
+                <fallback_locale>en-US</fallback_locale>
+                <cache_lifetime>24</cache_lifetime>
+            </taxonomy>
             <cron>
                 <enabled>0</enabled>
                 <frequency>daily</frequency>

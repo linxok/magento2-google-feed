@@ -113,27 +113,38 @@ class ImportGoogleTaxonomy extends Command
             }
 
             $output->writeln(sprintf('        <info>Normalized locale:</info> %s', $normalizedLocale));
-            $output->write('        <info>Fetching taxonomy...</info> ');
+            $output->writeln('');
 
             try {
+                $startTime = microtime(true);
                 $result = $this->categoryFetcher->fetch($normalizedLocale);
 
                 if (empty($result['rows'])) {
-                    $output->writeln('<error>Failed - no data received</error>');
+                    $output->writeln('        <error>Failed - no data received</error>');
                     $output->writeln('');
                     continue;
                 }
 
-                $output->writeln(sprintf('<info>OK (%d categories)</info>', count($result['rows'])));
+                $downloadTime = round(microtime(true) - $startTime, 2);
+                $categoryCount = count($result['rows']);
+                
+                $output->writeln(sprintf('        <info>Download URL:</info> %s', $result['source_url']));
+                $output->writeln(sprintf('        <info>Download time:</info> %s seconds', $downloadTime));
+                $output->writeln(sprintf('        <info>Categories found:</info> %d', $categoryCount));
+                $output->writeln(sprintf('        <info>Locale used:</info> %s', $result['locale_code']));
+                $output->writeln('');
+                
                 $output->write('        <info>Saving to database...</info> ');
-
+                
+                $saveStartTime = microtime(true);
                 $this->categoryStorage->saveTaxonomy($result['locale_code'], $result['rows']);
+                $saveTime = round(microtime(true) - $saveStartTime, 2);
 
-                $output->writeln('<info>Done</info>');
+                $output->writeln(sprintf('<info>Done (%s seconds)</info>', $saveTime));
 
                 $localesProcessed[] = $result['locale_code'];
             } catch (\Exception $e) {
-                $output->writeln(sprintf('<error>Error: %s</error>', $e->getMessage()));
+                $output->writeln(sprintf('        <error>Error: %s</error>', $e->getMessage()));
             }
 
             $output->writeln('');

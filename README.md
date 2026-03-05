@@ -93,6 +93,30 @@ All fields use dropdown selection (no manual code entry):
 
 The module supports Google Product Category assignment at both product and category levels with automatic inheritance.
 
+**Configure Taxonomy Sources:**
+
+Navigate to: **Stores → Configuration → MyCompany → Google Feed → Google Product Category Taxonomy**
+
+- **Taxonomy URL Pattern**: URL pattern for downloading taxonomy. Use `%s` as placeholder for locale code
+  - Default: `https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt`
+  - Example: `https://yourdomain.com/custom-taxonomy-%s.txt`
+  
+- **Custom Taxonomy URLs (Advanced)**: Override URLs for specific locales
+  - Format: one per line as `locale_code=URL`
+  - Example:
+    ```
+    uk-UA=https://example.com/custom-taxonomy-uk.txt
+    de-DE=https://example.com/custom-taxonomy-de.txt
+    ```
+  - Useful for:
+    - Using custom/modified taxonomy files
+    - Hosting taxonomy files locally for faster import
+    - Using alternative taxonomy sources
+    
+- **Fallback Locale**: Locale to use if taxonomy is not available for store's locale (default: en-US)
+
+- **Cache Lifetime**: How long to cache taxonomy data before re-downloading (in hours, 0 = no cache)
+
 **Import Taxonomy:**
 ```bash
 php bin/magento mycompany:googlefeed:import-taxonomy
@@ -101,8 +125,9 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 This command:
 - Analyzes all store views and their locales
 - Downloads Google Product Category taxonomy for each unique language
+- Uses configured URL pattern or custom URLs
 - Stores taxonomy in database with locale-specific versions
-- Shows detailed progress during import
+- Shows detailed progress including download URLs, time, and data size
 - Skips already processed locales
 
 **Category-Level Assignment:**

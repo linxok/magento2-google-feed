@@ -138,7 +138,7 @@ class FeedGenerator
         
         // Channel information
         $xml->writeElement('title', $this->getConfigValue('googlefeed/general/title'));
-        $xml->writeElement('link', $this->storeManager->getStore()->getBaseUrl());
+        $xml->writeElement('link', $this->getNormalizedStoreBaseUrl());
         $xml->writeElement('description', $this->getConfigValue('googlefeed/general/description'));
 
         // Add products
@@ -281,16 +281,13 @@ class FeedGenerator
         $xml->writeElement('g:title', $this->sanitizeXmlValue($product->getName()));
         $description = $product->getDescription() ?: $product->getShortDescription() ?: $product->getName();
         $xml->writeElement('g:description', $this->sanitizeXmlValue(strip_tags($description ?? '')));
-        $xml->writeElement('g:link', $this->sanitizeUrl($product->getProductUrl()));
+        $xml->writeElement('g:link', $this->sanitizeUrl($this->getProductFeedUrl($product)));
         
         // Image
-        $imageUrl = $this->imageHelper->init($product, 'product_base_image')
-            ->constrainOnly(true)
-            ->keepAspectRatio(true)
-            ->keepFrame(false)
-            ->resize($this->getConfigValue('googlefeed/feed/image_size'))
-            ->getUrl();
-        $xml->writeElement('g:image_link', $this->sanitizeUrl($imageUrl));
+        $imageUrl = $this->getProductImageUrl($product);
+        if ($imageUrl !== '') {
+            $xml->writeElement('g:image_link', $this->sanitizeUrl($imageUrl));
+        }
         
         // Additional images
         $mediaGallery = $product->getMediaGalleryImages();
@@ -691,6 +688,101 @@ class FeedGenerator
         }, $attributeCodes));
 
         return array_values(array_unique($attributeCodes));
+    }
+
+    /**
+     * @param \Magento\Catalog\Model\Product $product
+     * @return string
+     */
+    protected function getProductFeedUrl($product)
+    {
+        $urlPath = trim((string)$product->getData('url_path'), '/');
+        if ($urlPath === '') {
+            $urlPath = ltrim((string)$product->getUrlKey(), '/');
+            if ($urlPath !== '') {
+                $urlPath .= '.html';
+            }
+        }
+
+        if ($urlPath === '') {
+            return (string)$product->getProductUrl();
+        }
+
+        return rtrim($this->getNormalizedStoreBaseUrl(), '/') . '/' . $urlPath;
+    }
+
+    /**
+     * @param \Magento\Catalog\Model\Product $product
+     * @return string
+     */
+    protected function getProductImageUrl($product)
+    {
+        $imageFile = (string)$product->getImage();
+        if ($imageFile === '' || $imageFile === 'no_selection') {
+            return '';
+        }
+
+        return rtrim(
+            $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA),
+            '/'
+        ) . '/catalog/product' . $imageFile;
+    }
+
+    /**
+     * @return string
+     */
+    protected function getNormalizedStoreBaseUrl()
+    {
+        $store = $this->storeManager->getStore();
+        $baseUrl = (string)$store->getBaseUrl();
+        $storeCode = trim((string)$store->getCode(), '/');
+
+        if ($storeCode === '') {
+            return rtrim($baseUrl, '/') . '/';
+        }
+
+        $parts = parse_url($baseUrl);
+        if ($parts === false || empty($parts['host'])) {
+            return rtrim($baseUrl, '/') . '/';
+        }
+
+        $host = $parts['host'];
+        $path = isset($parts['path']) ? trim((string)$parts['path'], '/') : '';
+
+        if ($path === '') {
+            $hostSuffix = substr($host, -strlen($storeCode));
+            if ($hostSuffix === $storeCode && strlen($host) > strlen($storeCode)) {
+                $normalizedHost = substr($host, 0, -strlen($storeCode));
+                if ($normalizedHost !== '') {
+                    $host = $normalizedHost;
+                }
+            }
+
+            $path = $storeCode;
+        }
+
+        $normalizedUrl = '';
+        if (!empty($parts['scheme'])) {
+            $normalizedUrl .= $parts['scheme'] . '://';
+        }
+
+        if (!empty($parts['user'])) {
+            $normalizedUrl .= $parts['user'];
+            if (!empty($parts['pass'])) {
+                $normalizedUrl .= ':' . $parts['pass'];
+            }
+            $normalizedUrl .= '@';
+        }
+
+        $normalizedUrl .= $host;
+
+        if (!empty($parts['port'])) {
+            $normalizedUrl .= ':' . $parts['port'];
+        }
+
+        $normalizedUrl .= '/' . trim($path, '/') . '/';
+
+        return $normalizedUrl;
     }
 
     /**

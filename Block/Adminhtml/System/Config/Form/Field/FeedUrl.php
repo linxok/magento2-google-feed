@@ -50,8 +50,8 @@ class FeedUrl extends Field
                 foreach ($stores as $store) {
                     $storeCode = $store->getCode();
                     $storeName = $store->getName();
-                    $baseUrl = $store->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_WEB);
-                    $feedUrl = $baseUrl . 'googlefeed/feed/index?store=' . $storeCode;
+                    $baseUrl = $this->getNormalizedStoreBaseUrl($store);
+                    $feedUrl = rtrim($baseUrl, '/') . '/googlefeed/feed/index?store=' . rawurlencode($storeCode);
                     
                     $uniqueId = 'googlefeed_url_' . $store->getId();
                     $messageId = 'copy_message_' . $store->getId();
@@ -121,5 +121,62 @@ class FeedUrl extends Field
         </script>';
         
         return $html;
+    }
+
+    /**
+     * @param \Magento\Store\Api\Data\StoreInterface|\Magento\Store\Model\Store $store
+     * @return string
+     */
+    protected function getNormalizedStoreBaseUrl($store)
+    {
+        $baseUrl = (string)$store->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_WEB);
+        $storeCode = trim((string)$store->getCode(), '/');
+
+        if ($storeCode === '') {
+            return rtrim($baseUrl, '/') . '/';
+        }
+
+        $parts = parse_url($baseUrl);
+        if ($parts === false || empty($parts['host'])) {
+            return rtrim($baseUrl, '/') . '/';
+        }
+
+        $host = $parts['host'];
+        $path = isset($parts['path']) ? trim((string)$parts['path'], '/') : '';
+
+        if ($path === '') {
+            $hostSuffix = substr($host, -strlen($storeCode));
+            if ($hostSuffix === $storeCode && strlen($host) > strlen($storeCode)) {
+                $normalizedHost = substr($host, 0, -strlen($storeCode));
+                if ($normalizedHost !== '') {
+                    $host = $normalizedHost;
+                }
+            }
+
+            $path = $storeCode;
+        }
+
+        $normalizedUrl = '';
+        if (!empty($parts['scheme'])) {
+            $normalizedUrl .= $parts['scheme'] . '://';
+        }
+
+        if (!empty($parts['user'])) {
+            $normalizedUrl .= $parts['user'];
+            if (!empty($parts['pass'])) {
+                $normalizedUrl .= ':' . $parts['pass'];
+            }
+            $normalizedUrl .= '@';
+        }
+
+        $normalizedUrl .= $host;
+
+        if (!empty($parts['port'])) {
+            $normalizedUrl .= ':' . $parts['port'];
+        }
+
+        $normalizedUrl .= '/' . trim($path, '/') . '/';
+
+        return $normalizedUrl;
     }
 }

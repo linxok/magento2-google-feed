@@ -188,6 +188,11 @@ class FeedGenerator
             'image',
             'url_key'
         ]);
+
+        $configuredAttributeCodes = $this->getConfiguredProductAttributeCodes();
+        if (!empty($configuredAttributeCodes)) {
+            $collection->addAttributeToSelect($configuredAttributeCodes);
+        }
         
         // Add media gallery to load additional images
         $collection->addMediaGalleryData();
@@ -659,6 +664,33 @@ class FeedGenerator
         $value = $product->getData($attributeCode);
 
         return is_scalar($value) ? trim((string)$value) : '';
+    }
+
+    /**
+     * @return array
+     */
+    protected function getConfiguredProductAttributeCodes()
+    {
+        $attributeCodes = [
+            $this->getConfigValue('googlefeed/attributes/brand_attribute'),
+            $this->getConfigValue('googlefeed/attributes/gtin_attribute'),
+            $this->getConfigValue('googlefeed/attributes/mpn_attribute'),
+            $this->getConfigValue('googlefeed/attributes/condition_attribute'),
+            $this->getConfigValue('googlefeed/attributes/color_attribute'),
+            $this->getConfigValue('googlefeed/attributes/size_attribute'),
+            $this->getConfigValue('googlefeed/attributes/gender_attribute'),
+            $this->getConfigValue('googlefeed/attributes/age_group_attribute')
+        ];
+
+        $attributeCodes = array_filter(array_map(function ($attributeCode) {
+            if (!is_scalar($attributeCode)) {
+                return '';
+            }
+
+            return trim((string)$attributeCode);
+        }, $attributeCodes));
+
+        return array_values(array_unique($attributeCodes));
     }
 
     /**

@@ -30,6 +30,7 @@
                 <brand_attribute></brand_attribute>
                 <gtin_attribute></gtin_attribute>
                 <mpn_attribute></mpn_attribute>
+                <identifier_exists_no_gtin>0</identifier_exists_no_gtin>
                 <condition_attribute></condition_attribute>
                 <color_attribute></color_attribute>
                 <size_attribute></size_attribute>

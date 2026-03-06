@@ -121,6 +121,11 @@
                     <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>
                     <comment>Select the attribute for MPN (e.g., mpn, part_number)</comment>
                 </field>
+                <field id="identifier_exists_no_gtin" translate="label" type="select" sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Set Identifier Exists to No When GTIN Is Missing</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>When enabled, products without GTIN will be exported with g:identifier_exists set to no. Configure Brand and optionally MPN attribute mappings as well.</comment>
+                </field>
                 <field id="condition_attribute" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Condition Attribute</label>
                     <source_model>MyCompany\GoogleFeed\Model\Config\Source\ProductAttributes</source_model>

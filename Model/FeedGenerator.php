@@ -340,28 +340,28 @@ class FeedGenerator
         
         // Brand (if attribute exists)
         $brandAttribute = $this->getConfigValue('googlefeed/attributes/brand_attribute');
-        if ($brandAttribute) {
-            $attribute = $product->getResource()->getAttribute($brandAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $brandValue = $product->getAttributeText($brandAttribute);
-                if ($brandValue) {
-                    $xml->writeElement('g:brand', $this->sanitizeXmlValue($brandValue));
-                }
-            } elseif ($product->getData($brandAttribute)) {
-                $xml->writeElement('g:brand', $this->sanitizeXmlValue($product->getData($brandAttribute)));
-            }
+        $brandValue = $this->getProductAttributeValue($product, $brandAttribute);
+        if ($brandValue !== '') {
+            $xml->writeElement('g:brand', $this->sanitizeXmlValue($brandValue));
         }
         
         // GTIN (if attribute exists)
         $gtinAttribute = $this->getConfigValue('googlefeed/attributes/gtin_attribute');
-        if ($gtinAttribute && $product->getData($gtinAttribute)) {
-            $xml->writeElement('g:gtin', $this->sanitizeXmlValue($product->getData($gtinAttribute)));
+        $gtinValue = $this->getProductAttributeValue($product, $gtinAttribute);
+        if ($gtinValue !== '') {
+            $xml->writeElement('g:gtin', $this->sanitizeXmlValue($gtinValue));
         }
         
         // MPN (if attribute exists)
         $mpnAttribute = $this->getConfigValue('googlefeed/attributes/mpn_attribute');
-        if ($mpnAttribute && $product->getData($mpnAttribute)) {
-            $xml->writeElement('g:mpn', $this->sanitizeXmlValue($product->getData($mpnAttribute)));
+        $mpnValue = $this->getProductAttributeValue($product, $mpnAttribute);
+        if ($mpnValue !== '') {
+            $xml->writeElement('g:mpn', $this->sanitizeXmlValue($mpnValue));
+        }
+
+        $identifierExistsNoGtin = $this->getConfigValue('googlefeed/attributes/identifier_exists_no_gtin');
+        if ($gtinValue === '' && $identifierExistsNoGtin) {
+            $xml->writeElement('g:identifier_exists', 'no');
         }
         
         // Condition
@@ -633,6 +633,32 @@ class FeedGenerator
         );
 
         return $locale !== '' ? $locale : 'en_US';
+    }
+
+    /**
+     * @param \Magento\Catalog\Model\Product $product
+     * @param string|null $attributeCode
+     * @return string
+     */
+    protected function getProductAttributeValue($product, $attributeCode)
+    {
+        if (!$attributeCode) {
+            return '';
+        }
+
+        $attribute = $product->getResource()->getAttribute($attributeCode);
+        if ($attribute && $attribute->usesSource()) {
+            $value = $product->getAttributeText($attributeCode);
+            if (is_array($value)) {
+                $value = implode(', ', array_filter($value));
+            }
+
+            return is_scalar($value) ? trim((string)$value) : '';
+        }
+
+        $value = $product->getData($attributeCode);
+
+        return is_scalar($value) ? trim((string)$value) : '';
     }
 
     /**

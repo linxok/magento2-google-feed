@@ -11,6 +11,7 @@
 7. [Автоматична генерація фіду (Cron)](#7-автоматична-генерація-фіду-cron)
 8. [Маппінг атрибутів продуктів](#8-маппінг-атрибутів-продуктів)
 9. [Вирішення проблем](#9-вирішення-проблем)
+10. [Структура XML-фіду](#10-структура-xml-фіду)
 
 ---
 
@@ -49,13 +50,17 @@ Starting Google Product Category Taxonomy import...
 Found 2 store view(s) to analyze
 
 [1/2] Store: English Store (ID: 1, Code: en)
-        Locale: en_US → en-US
-        Fetching taxonomy... OK (5627 categories)
+        Locale: en_US
+        Normalized locale: en-US
+        Download URL: https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt
+        Categories found: 5627
         Saving to database... Done
 
 [2/2] Store: Ukrainian Store (ID: 2, Code: uk)
-        Locale: uk_UA → uk-UA
-        Fetching taxonomy... OK (4832 categories)
+        Locale: uk_UA
+        Normalized locale: uk-UA
+        Download URL: https://www.google.com/basepages/producttype/taxonomy-with-ids.uk-UA.txt
+        Categories found: 4832
         Saving to database... Done
 
 Import completed!
@@ -74,9 +79,13 @@ Processed 2 unique locale(s): en-US, uk-UA
 
 | Налаштування | Опис |
 |---|---|
+| Feed URL | Поле лише для читання з прямими URL фіду для store view |
 | Enable Google Feed | Вмикає/вимикає генерацію фіду для цього store view |
 | Feed Title | Заголовок, що відображається в XML-каналі |
 | Feed Description | Опис, що відображається в XML-каналі |
+| Enable HTTP Basic Authentication | Захищає feed endpoint логіном і паролем |
+| Authentication Username | Ім'я користувача для доступу до фіду, якщо автентифікацію увімкнено |
+| Authentication Password | Зашифрований пароль для доступу до фіду, якщо автентифікацію увімкнено |
 
 ### Налаштування фіду
 
@@ -97,7 +106,7 @@ Processed 2 unique locale(s): en-US, uk-UA
 | Minimum Price | Пропускати продукти дешевші за вказану ціну |
 | Maximum Price | Пропускати продукти дорожчі за вказану ціну |
 
-> **Примітка:** Якщо встановлено і Include, і Exclude — пріоритет має Include.
+> **Примітка:** Якщо встановлено і Include, і Exclude, Include є основним фільтром, а Exclude прибирає товари з уже вибраного набору.
 
 ### Збереження налаштувань
 
@@ -120,16 +129,16 @@ Google Product Categories — це офіційна таксономія Google 
 - Повний шлях назви (наприклад `Electronics > Communications > Telephony > Mobile Phones`)
 - Локаль (наприклад `en-US`, `uk-UA`)
 
-### Правила успадкування
+### Пріоритет визначення категорії
 
-Модуль автоматично визначає, яку Google Product Category використовувати для кожного продукту, піднімаючись по дереву категорій:
+Модуль автоматично визначає, яку Google Product Category використовувати для кожного продукту, за таким пріоритетом:
 
 ```
-1. Google Product Category прямої категорії продукту
+1. Атрибут продукту `mycompany_google_product_category`
         ↓ (якщо не встановлено)
-2. Google Product Category батьківської категорії
-        ↓ (якщо не встановлено — піднімається по дереву вище)
-3. Категорія діда → ... → Коренева категорія
+2. Google Product Category категорії продукту
+        ↓ (якщо не встановлено)
+3. Батьківська категорія → ... → коренева категорія
         ↓ (якщо нічого не знайдено)
 4. Поле не включається у фід
 ```
@@ -141,7 +150,7 @@ Google Product Categories — це офіційна таксономія Google 
   └─ Телефони [Google Category: 267 — Mobile Phones]
       └─ Смартфони [Не встановлено → успадковує 267]
           └─ Продукт A [Не встановлено → успадковує 267]
-          └─ Продукт B [Не встановлено → успадковує 267]
+          └─ Продукт B [Встановлено атрибут продукту → використовується власне значення]
 ```
 
 ---
@@ -157,7 +166,7 @@ Google Product Categories — це офіційна таксономія Google 
 3. Прокрутіть вниз до секції **Display Settings** і розгорніть її
 4. Знайдіть поле **Google Product Category**
 5. Натисніть кнопку **Select Category** — праворуч відкриється панель із повним деревом таксономії Google
-6. Скористайтесь **рядком пошуку** вгорі для швидкого знаходження категорії (наприклад, введіть "mobile")
+6. Скористайтесь **рядком пошуку** вгорі для швидкого знаходження категорії (наприклад, введіть `mobile`)
 7. Натисніть **Select** поруч з потрібною категорією
 8. У полі з'явиться назва категорії; ID зберігається автоматично
 9. Натисніть **Save** для збереження категорії Magento
@@ -165,8 +174,8 @@ Google Product Categories — це офіційна таксономія Google 
 ### Робота з вибірником категорій
 
 - **Пошук**: введіть будь-яке ключове слово в рядок пошуку — результати підсвічуються та фільтруються в реальному часі
-- **Перегляд**: натисніть ▶ біля батьківської категорії, щоб розгорнути дочірні
-- **Вибір**: натисніть синю кнопку **Select** поруч з будь-якою категорією
+- **Перегляд**: натисніть стрілку біля батьківської категорії, щоб розгорнути дочірні
+- **Вибір**: натисніть кнопку **Select** поруч з будь-якою категорією
 - **Очищення**: натисніть кнопку **Clear** поруч з полем, щоб видалити призначення
 
 ---
@@ -195,12 +204,6 @@ https://yourstore.com/googlefeed/feed/index?store=uk
    - `feed_ukrainian_store_uk_uk.xml`
    - Формат: `feed_{назва_магазину}_{код_магазину}_{код_мови}.xml`
 
-### Завантаження файлу фіду
-
-Перейдіть до: **Marketing → Google Feed → Download Feed XML**
-
-Завантажує XML-фід для поточного store view.
-
 ### Додавання фіду до Google Merchant Center
 
 1. Увійдіть до [Google Merchant Center](https://merchants.google.com)
@@ -208,12 +211,19 @@ https://yourstore.com/googlefeed/feed/index?store=uk
 3. Натисніть **+** для додавання нового фіду
 4. Вкажіть країну, мову та назву фіду
 5. Оберіть **Scheduled fetch** або **Upload**
-6. Для Scheduled fetch введіть URL фіду:
+6. Для Scheduled fetch введіть URL збереженого файлу фіду:
    ```
    https://yourstore.com/media/googlefeed/feed_english_store_en_en.xml
    ```
 7. Встановіть частоту завантаження (рекомендується щодня)
 8. Збережіть і дочекайтесь обробки Google
+
+### Автентифікація фіду
+
+Якщо увімкнути **HTTP Basic Authentication** у налаштуваннях модуля, прямий URL фіду вимагатиме облікові дані.
+
+- Використовуйте це лише якщо отримувач фіду підтримує basic auth
+- Якщо Google Merchant Center повертає помилки автентифікації, вимкніть захист фіду і перевірте ще раз
 
 ---
 
@@ -231,7 +241,7 @@ https://yourstore.com/googlefeed/feed/index?store=uk
 2. **Налаштуйте кожен store view окремо:**
    - У лівому верхньому куті адмін-панелі переключіться на потрібний store view
    - Перейдіть до **Stores → Configuration → MyCompany → Google Feed**
-   - Зніміть галочки "Use Website" / "Use Default" для налаштувань, які хочете змінити
+   - Зніміть прапорці `Use Website` / `Use Default` для налаштувань, які хочете змінити
    - Увімкніть фід, встановіть фільтри, специфічні для цього магазину
    - Збережіть
 
@@ -259,7 +269,7 @@ https://yourstore.com/googlefeed/feed/index?store=uk
 | Generation Frequency | `daily` / `twice daily` / `every 6h` / `hourly` / `weekly` |
 | Generation Time | Час запуску у форматі `HH:MM` (наприклад `03:00`) |
 | Generate Feeds for Stores | Оберіть конкретні магазини або залиште порожнім для всіх |
-| Save Feed to File | Базовий шлях до файлу (наприклад `googlefeed/feed.xml`) |
+| Generated Feed Files | Показує згенеровані файли, збережені у `pub/media/googlefeed/` |
 
 ### Як перевірити роботу cron
 
@@ -282,6 +292,7 @@ php bin/magento cron:run
 | Бренд | Brand Attribute | `g:brand` |
 | GTIN/UPC/EAN | GTIN Attribute | `g:gtin` |
 | MPN | MPN Attribute | `g:mpn` |
+| Обробка відсутнього GTIN | Set Identifier Exists to No When GTIN Is Missing | `g:identifier_exists` |
 | Стан | Condition Attribute | `g:condition` |
 | Колір | Color Attribute | `g:color` |
 | Розмір | Size Attribute | `g:size` |
@@ -295,6 +306,8 @@ php bin/magento cron:run
 3. Якщо атрибут не існує — спочатку створіть його в **Stores → Attributes → Product**
 4. Збережіть конфігурацію та очистіть кеш
 
+Коли **Set Identifier Exists to No When GTIN Is Missing** увімкнено, товари без GTIN експортуються з `g:identifier_exists`, встановленим у `no`.
+
 ---
 
 ## 9. Вирішення проблем
@@ -302,7 +315,7 @@ php bin/magento cron:run
 ### Фід порожній
 - Перевірте, що **Enable Google Feed** встановлено в **Yes** для цього store view
 - Переконайтесь, що продукти **увімкнені** та **видимі** в каталозі
-- Перевірте фільтр **Include Categories** — якщо встановлено, експортуються лише ці категорії
+- Перевірте фільтр **Include Categories** — якщо його не налаштовано, модуль за замовчуванням не експортує товари
 - Перевірте фільтри **Minimum/Maximum Price** — можливо вони виключають всі продукти
 
 ### Google Product Category не відображається у формі категорії
@@ -322,16 +335,22 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 ### Фід показує неправильну мову
 - Переконайтесь, що ви звертаєтесь до фіду з правильним кодом магазину: `?store=uk`
 - Продукти повинні мати локалізований вміст, збережений для конкретного store view
-- Перевірте, що **Use Default Value** знятий для назви/опису продукту в цьому store view
+- Перевірте, що `Use Default Value` знятий для назви/опису продукту в цьому store view
 
 ### Файли фіду не генеруються
 - Перевірте, що директорія `pub/media/googlefeed/` існує і доступна для запису:
   ```bash
   chmod 775 pub/media/googlefeed/
   ```
+- Переконайтесь, що фід увімкнено для потрібного store view
 - Переконайтесь, що **Enable Automatic Generation** встановлено в **Yes**
 - Перевірте роботу cron: `php bin/magento cron:run`
-- Переглянь логи: `var/log/system.log`
+- Перегляньте логи: `var/log/system.log`
+
+### Фід повертає помилку автентифікації
+- Перевірте, чи увімкнено **Enable HTTP Basic Authentication** у конфігурації
+- Перевірте ім'я користувача та пароль
+- Якщо Google Merchant Center не може отримати фід, вимкніть автентифікацію і протестуйте ще раз
 
 ### Проблеми з продуктивністю при великому каталозі
 - Зменшіть **Products Limit** у конфігурації
@@ -341,7 +360,7 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 
 ---
 
-## Структура XML-фіду
+## 10. Структура XML-фіду
 
 Модуль генерує XML у форматі Google Shopping з усіма обов'язковими та рекомендованими полями:
 
@@ -365,6 +384,7 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 | `g:brand` | Бренд | Маппінг атрибута |
 | `g:gtin` | GTIN/UPC/EAN | Маппінг атрибута |
 | `g:mpn` | Номер виробника | Маппінг атрибута |
+| `g:identifier_exists` | Прапорець наявності ідентифікатора | Налаштування обробки GTIN |
 | `g:google_product_category` | Google категорія | Продукт → Категорія → Батьківська категорія |
 | `g:product_type` | Тип продукту | Шлях категорії в магазині |
 | `g:additional_image_link` | Додаткові зображення | Галерея продукту |

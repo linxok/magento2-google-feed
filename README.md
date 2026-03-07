@@ -1,36 +1,51 @@
-# Google Shopping Feed for Magento 2
+# MyCompany Google Feed for Magento 2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Magento 2](https://img.shields.io/badge/Magento-2.4-orange.svg)](https://magento.com/)
 
-Google Shopping Feed Generator for Magento 2 with multi-store and multi-language support.
+Google Shopping XML feed generator for Magento 2 with multi-store support, localized taxonomy import, category-based Google Product Category mapping, and scheduled feed generation.
 
 ## Overview
 
-This module generates Google Shopping XML feeds for Magento 2 stores with full multi-language support, comprehensive product filtering, and automated generation capabilities.
+`MyCompany_GoogleFeed` generates Google Merchant Center compatible XML feeds from Magento catalog data.
 
-## Features
+The module is designed for stores that need:
 
-- ✅ **Multi-Store/Multi-Language Support** - Automatic feed generation for each store view with localized content
-- ✅ **Automated Generation** - Cron-based scheduled feed generation with configurable frequency
-- ✅ **Manual Generation** - Admin panel interface for on-demand feed file creation
-- ✅ **Advanced Filtering** - Filter products by categories, price range, stock status
-- ✅ **Attribute Mapping** - Dropdown selection for brand, GTIN, MPN, color, size, gender, age group
-- ✅ **Google Product Category Taxonomy** - Import and manage Google Product Categories with multi-language support
-- ✅ **Category-Level Assignment** - Assign Google Product Categories to Magento categories with inheritance
-- ✅ **File Management** - View and download generated feeds directly from admin panel
-- ✅ **Security** - XML injection prevention, URL validation, ACL permissions
-- ✅ **Performance** - Cache support for optimized feed generation
-- ✅ **Descriptive File Names** - Files include store name, code, and language (e.g., `feed_english_store_en_en.xml`)
+- Separate feeds per store view
+- Localized product content in each feed
+- Flexible product filtering
+- Attribute mapping through admin configuration
+- Google Product Category taxonomy import and assignment
+- Manual and cron-based file generation
+
+## Key Features
+
+- **Multi-store feed generation** for all active or selected store views
+- **Direct live feed URLs** per store view
+- **Saved XML files** in `pub/media/googlefeed/`
+- **CLI taxonomy import** for Google Product Categories
+- **Category-level Google Product Category assignment** with inheritance
+- **Attribute mapping** for brand, GTIN, MPN, condition, color, size, gender, age group
+- **`g:identifier_exists` support** when GTIN is missing
+- **Optional HTTP Basic Authentication** for the feed endpoint
+- **Cron automation** with configurable frequency and store selection
+- **Admin feed management page** under Marketing
 
 ## Requirements
 
-- Magento 2.4.x or higher
+- Magento 2.4.x
 - PHP 7.4, 8.0, 8.1, or 8.2
+
+## Package Information
+
+- **Module name**: `MyCompany_GoogleFeed`
+- **Composer package**: `mycompany/magento2-google-feed`
+- **Current package version**: `1.0.3`
+- **License**: `MIT`
 
 ## Installation
 
-### Method 1: Composer (Recommended)
+### Composer
 
 ```bash
 composer require mycompany/magento2-google-feed
@@ -40,392 +55,329 @@ php bin/magento setup:di:compile
 php bin/magento cache:flush
 ```
 
-### Method 2: Manual Installation
+### Manual installation
 
-1. Download the module from GitHub
-2. Extract to `app/code/MyCompany/GoogleFeed`
-3. Enable the module:
+1. Copy the module to `app/code/MyCompany/GoogleFeed`
+2. Enable it and run Magento upgrade commands:
 
 ```bash
 php bin/magento module:enable MyCompany_GoogleFeed
 php bin/magento setup:upgrade
 php bin/magento setup:di:compile
 php bin/magento cache:flush
-
-# Import Google Product Category Taxonomy (recommended after installation)
-php bin/magento mycompany:googlefeed:import-taxonomy
 ```
 
-## Configuration
+## Quick Start
 
-Navigate to: **Stores → Configuration → MyCompany → Google Feed**
+### 1. Import Google taxonomy
 
-### General Settings
-- **Enable Google Feed**: Enable/disable feed generation
-- **Feed Title**: Title for the feed channel
-- **Feed Description**: Description for the feed channel
+Run the CLI command after installation:
 
-### Feed Settings
-- **Products Limit**: Maximum number of products (default: 1000)
-- **Include Out of Stock Products**: Include/exclude out of stock items
-- **Image Size**: Product image size in pixels (default: 800)
-- **Currency**: Currency for prices (empty = store default)
-- **Default Product Condition**: new/refurbished/used
-
-### Product Filters
-- **Include Categories**: Export only selected categories
-- **Exclude Categories**: Exclude specific categories
-- **Minimum Price**: Filter products by minimum price
-- **Maximum Price**: Filter products by maximum price
-
-### Product Attributes Mapping
-All fields use dropdown selection (no manual code entry):
-- **Brand Attribute**: Product brand
-- **GTIN Attribute**: GTIN/UPC/EAN code
-- **MPN Attribute**: Manufacturer part number
-- **Condition Attribute**: Product condition (overrides default)
-- **Color Attribute**: Product color
-- **Size Attribute**: Product size
-- **Gender Attribute**: male/female/unisex
-- **Age Group Attribute**: Target age group
-
-### Google Product Category Taxonomy
-
-The module supports Google Product Category assignment at both product and category levels with automatic inheritance.
-
-**Configure Taxonomy Sources:**
-
-Navigate to: **Stores → Configuration → MyCompany → Google Feed → Google Product Category Taxonomy**
-
-- **Taxonomy URL Pattern**: URL pattern for downloading taxonomy. Use `%s` as placeholder for locale code
-  - Default: `https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt`
-  - Example: `https://yourdomain.com/custom-taxonomy-%s.txt`
-  
-- **Custom Taxonomy URLs (Advanced)**: Override URLs for specific locales
-  - Format: one per line as `locale_code=URL`
-  - Example:
-    ```
-    uk-UA=https://example.com/custom-taxonomy-uk.txt
-    de-DE=https://example.com/custom-taxonomy-de.txt
-    ```
-  - Useful for:
-    - Using custom/modified taxonomy files
-    - Hosting taxonomy files locally for faster import
-    - Using alternative taxonomy sources
-    
-- **Fallback Locale**: Locale to use if taxonomy is not available for store's locale (default: en-US)
-
-- **Cache Lifetime**: How long to cache taxonomy data before re-downloading (in hours, 0 = no cache)
-
-**Import Taxonomy:**
 ```bash
 php bin/magento mycompany:googlefeed:import-taxonomy
 ```
 
 This command:
-- Analyzes all store views and their locales
-- Downloads Google Product Category taxonomy for each unique language
-- Uses configured URL pattern or custom URLs
-- Stores taxonomy in database with locale-specific versions
-- Shows detailed progress including download URLs, time, and data size
-- Skips already processed locales
 
-**Category-Level Assignment:**
-1. Navigate to **Catalog → Categories**
-2. Select any category
-3. Expand **Display Settings** section
-4. Select **Google Product Category** from dropdown
-5. Save category
+- Detects store view locales
+- Downloads the Google Product Category taxonomy for each unique locale
+- Stores categories in `mycompany_googlefeed_taxonomy`
+- Avoids reprocessing duplicate locales in the same run
 
-**Inheritance Behavior:**
-- Child categories inherit Google Product Category from parent categories
-- Products inherit from their assigned categories
-- More specific assignments override inherited values:
-  - Product-level assignment > Category assignment > Parent category assignment
-- Deepest category level wins when product is in multiple categories
+### 2. Configure the module
 
-**Assignment Priority (highest to lowest):**
-1. Product attribute `mycompany_google_product_category`
-2. Direct category assignment
-3. Parent category assignment (traverses up the tree)
-4. No value (field omitted from feed)
+Open:
 
-**Example Hierarchy:**
+`Stores -> Configuration -> MyCompany -> Google Feed`
+
+### 3. Enable the feed for a store view
+
+At minimum configure:
+
+- `Enable Google Feed`
+- `Feed Title`
+- `Feed Description`
+- `Include Categories`
+
+### 4. Test the live feed URL
+
+Examples:
+
+```text
+https://yourstore.com/googlefeed/feed/index
+https://yourstore.com/googlefeed/feed/index?store=en
+https://yourstore.com/googlefeed/feed/index?store=uk
 ```
-Electronics [Google Category: 222]
-  └─ Phones [Google Category: 267] 
-      └─ Smartphones [No assignment - inherits 267]
-          └─ Product A [No assignment - inherits 267]
-          └─ Product B [Google Category: 268 - uses own value]
+
+### 5. Generate XML files for Merchant Center
+
+Use:
+
+`Marketing -> Google Feed -> Feed Management`
+
+Then click `Generate & Save Feed Files`.
+
+Generated files are saved in:
+
+```text
+pub/media/googlefeed/
 ```
+
+Example file names:
+
+```text
+feed_english_store_en_en.xml
+feed_ukrainian_store_uk_uk.xml
+```
+
+## Configuration Reference
+
+Configuration path:
+
+`Stores -> Configuration -> MyCompany -> Google Feed`
+
+### General Settings
+
+- **Feed URL**
+  - Read-only helper field with store-specific live feed URLs
+- **Enable Google Feed**
+  - Enables feed generation for the current scope
+- **Feed Title**
+  - XML channel title
+- **Feed Description**
+  - XML channel description
+- **Enable HTTP Basic Authentication**
+  - Protects feed access with basic auth
+- **Authentication Username**
+  - Used when auth is enabled
+- **Authentication Password**
+  - Stored encrypted in Magento config
+
+### Feed Settings
+
+- **Products Limit**
+  - Maximum number of exported products
+- **Include Out of Stock Products**
+  - Includes out-of-stock items when enabled
+- **Image Size**
+  - Main product image size in pixels
+- **Feed Currency**
+  - Uses configured currency or store default when empty
+- **Default Product Condition**
+  - Default value for `g:condition`
+
+### Product Filters
+
+- **Include Categories**
+  - Main export filter
+  - If not configured, the module intentionally exports no products by default
+- **Minimum Price**
+  - Excludes products below the configured price
+- **Maximum Price**
+  - Excludes products above the configured price
+- **Exclude Categories**
+  - Removes products from selected categories
+
+### Product Attributes Mapping
+
+- **Brand Attribute** -> `g:brand`
+- **GTIN Attribute** -> `g:gtin`
+- **MPN Attribute** -> `g:mpn`
+- **Set Identifier Exists to No When GTIN Is Missing** -> `g:identifier_exists=no`
+- **Condition Attribute** -> overrides default `g:condition`
+- **Color Attribute** -> `g:color`
+- **Size Attribute** -> `g:size`
+- **Gender Attribute** -> `g:gender`
+- **Age Group Attribute** -> `g:age_group`
+
+### Google Product Category Taxonomy
+
+- **Taxonomy URL Pattern**
+  - Uses `%s` as the locale placeholder
+- **Custom Taxonomy URLs (Advanced)**
+  - One row per locale in `locale_code=URL` format
+- **Fallback Locale**
+  - Used when no taxonomy is available for the store locale
+- **Cache Lifetime (hours)**
+  - Controls taxonomy download caching
 
 ### Automatic Generation (Cron)
-- **Enable Automatic Generation**: Enable scheduled feed generation
-- **Generation Frequency**: daily/twice_daily/every_6h/hourly/weekly
-- **Generation Time**: Time to run (HH:MM format)
-- **Generate Feeds for Stores**: Select specific stores or leave empty for all active stores
-- **Save Feed to File**: Base path (e.g., googlefeed/feed.xml) - store name, code, and language will be added automatically
-- **Generated Feed Files**: View and download all generated feed files directly from admin configuration
+
+- **Enable Automatic Generation**
+- **Generation Frequency**
+- **Generation Time**
+- **Generate Feeds for Stores**
+- **Generated Feed Files**
+
+## Google Product Category Mapping
+
+The module supports Google Product Category assignment at category level and resolves values with inheritance.
+
+### Category assignment workflow
+
+1. Go to `Catalog -> Categories`
+2. Open a category
+3. Expand `Display Settings`
+4. Use the `Google Product Category` picker
+5. Save the category
+
+### Resolution priority
+
+1. Product attribute `mycompany_google_product_category`
+2. Direct category assignment
+3. Parent category assignment
+4. No value exported
+
+### Taxonomy storage
+
+Imported taxonomy data is stored in:
+
+```text
+mycompany_googlefeed_taxonomy
+```
+
+Each record stores locale, Google category ID, hierarchy level, parent ID, category name, and full category path.
+
+## Admin Pages
+
+### Marketing -> Google Feed -> Feed Management
+
+Provides:
+
+- Store view overview
+- Feed status visibility
+- Direct feed URLs
+- Manual generation of saved XML files
+
+### Stores -> Configuration -> MyCompany -> Google Feed
+
+Provides:
+
+- Per-scope configuration
+- Generated files listing
+- Attribute mapping
+- Taxonomy source configuration
+- Cron settings
 
 ## Console Commands
 
-### Import Google Product Category Taxonomy
+### Import taxonomy
 
 ```bash
 php bin/magento mycompany:googlefeed:import-taxonomy
 ```
 
-**What it does:**
-- Scans all store views in your Magento installation
-- Identifies unique locales (languages)
-- Downloads Google Product Category taxonomy from Google servers
-- Parses and stores taxonomy in database
-- Supports multiple languages (en-US, uk-UA, de-DE, etc.)
-- Shows detailed progress for each step
+Run this command:
 
-**Example output:**
-```
-Starting Google Product Category Taxonomy import...
+- After initial installation
+- After adding a new locale/store view
+- When refreshing taxonomy data from Google
 
-Found 4 store view(s) to analyze
+## Feed Output
 
-[1/4] Store: English Store (ID: 1, Code: en)
-        Locale: en_US
-        Normalized locale: en-US
-        Fetching taxonomy... OK (5627 categories)
-        Saving to database... Done
+The XML feed includes standard Google Shopping fields such as:
 
-[2/4] Store: Ukrainian Store (ID: 2, Code: uk)
-        Locale: uk_UA
-        Normalized locale: uk-UA
-        Fetching taxonomy... OK (4832 categories)
-        Saving to database... Done
+- `g:id`
+- `g:title`
+- `g:description`
+- `g:link`
+- `g:image_link`
+- `g:additional_image_link`
+- `g:price`
+- `g:availability`
+- `g:condition`
+- `g:brand`
+- `g:gtin`
+- `g:mpn`
+- `g:identifier_exists`
+- `g:google_product_category`
+- `g:product_type`
+- `g:color`
+- `g:size`
+- `g:gender`
+- `g:age_group`
 
-Import completed!
-Processed 2 unique locale(s): en-US, uk-UA
-```
+## Multi-Store Notes
 
-**When to run:**
-- After module installation
-- When adding new store views with different languages
-- To update taxonomy with latest Google categories (run periodically)
+- Each store view can have its own feed settings
+- Feed URLs support the `?store={code}` parameter
+- Saved files include store name, store code, and locale language prefix
+- Product names, descriptions, URLs, prices, and category labels are store-aware
 
-## Usage
+## Security Notes
 
-### Frontend Access
+The module includes:
 
-Access the feed directly via URL:
-```
-https://yourstore.com/googlefeed/feed/index
-```
+- XML value sanitization
+- URL validation
+- ACL protection for admin actions
+- Optional HTTP Basic Authentication for feed access
 
-### Multi-Language/Multi-Store Setup
-
-**Automatic Multi-Store Feed Generation:**
-
-The module automatically generates separate feeds for each store view:
-
-1. **Via Cron (Recommended for production):**
-   - Enable automatic generation in Configuration
-   - Select stores in "Generate Feeds for Stores" (or leave empty for all)
-   - Files are saved with descriptive names including store name, code, and language:
-     - `pub/media/googlefeed/feed_english_store_en_en.xml` (English store)
-     - `pub/media/googlefeed/feed_ukrainian_store_uk_uk.xml` (Ukrainian store)
-     - `pub/media/googlefeed/feed_german_store_de_de.xml` (German store)
-   - Format: `feed_{store_name}_{store_code}_{language_code}.xml`
-
-2. **Manual File Generation:**
-   - Go to **Marketing → Google Feed → Feed Management**
-   - Click **"Generate & Save Feed Files"**
-   - All enabled stores will have feeds generated automatically
-   - Files saved to `pub/media/` with store-specific names
-
-3. **Direct URL Access (for testing):**
-   - English: `https://yourstore.com/googlefeed/feed/index?store=en`
-   - Ukrainian: `https://yourstore.com/googlefeed/feed/index?store=uk`
-   - German: `https://yourstore.com/googlefeed/feed/index?store=de`
-
-**Configure in Google Merchant Center:**
-1. Create separate feed for each language/country
-2. Set appropriate country and language
-3. Use store-specific feed file URL:
-   - `https://yourstore.com/media/googlefeed/feed_english_store_en_en.xml`
-   - `https://yourstore.com/media/googlefeed/feed_ukrainian_store_uk_uk.xml`
-   - Format: `feed_{store_name}_{store_code}_{language_code}.xml`
-
-**Per-Store Configuration:**
-- Switch store view in admin (top-left corner)
-- Configure store-specific settings
-- Localize product names, descriptions, categories
-- Each store can have different:
-  - Product filters (categories, price ranges)
-  - Attribute mappings
-  - Currency settings
-  - Feed title and description
-
-### Admin Panel
-
-**Feed Management Page:**
-
-Navigate to: **Marketing → Google Feed → Feed Management**
-
-This page provides:
-- Overview of all store views and their feed status
-- Direct links to feed URLs for each store
-- **Generate & Save Feed Files** button - creates feed files for all configured stores
-- Manual feed file generation with multi-store support
-
-**Download Feed XML:**
-
-Navigate to: **Marketing → Google Feed → Download Feed XML**
-
-Downloads XML feed for current store view.
-
-## Feed Format
-
-The module generates XML in Google Shopping format with all required and recommended fields:
-
-**Required Fields:**
-- `g:id` (SKU)
-- `g:title` (product name)
-- `g:description` (product description)
-- `g:link` (product URL)
-- `g:image_link` (product image)
-- `g:price` (price with currency)
-- `g:availability` (in stock/out of stock)
-- `g:condition` (new/refurbished/used)
-
-**Recommended Fields:**
-- `g:brand` (product brand)
-- `g:gtin` (GTIN/UPC/EAN)
-- `g:mpn` (manufacturer part number)
-- `g:google_product_category` (Google category with inheritance from categories)
-- `g:product_type` (store category path)
-- `g:additional_image_link` (additional product images)
-
-**Additional Fields (apparel):**
-- `g:color`, `g:size`, `g:gender`, `g:age_group`
-
-## Security
-
-**Implemented Protections:**
-- ✅ XML injection prevention (sanitizes all user input)
-- ✅ URL validation (only http/https protocols)
-- ✅ Store ID validation
-- ✅ Generic error messages (no stack traces exposed)
-- ✅ Security headers (X-Content-Type-Options: nosniff)
-- ✅ ACL permissions for admin functions
-
-**Recommendations:**
-- Configure rate limiting for feed endpoint
-- Enable Magento cache for feed results
-- Monitor access logs for abuse
-- Regular security updates
-
-## Performance
-
-- Uses Magento cache system (cache type: `googlefeed`)
-- Product collection optimized with proper filtering
-- Configurable product limits to prevent memory issues
-- Automatic generation via cron for large catalogs
+If you enable feed authentication, make sure your Google Merchant Center ingestion method supports it in your environment. If Google reports authentication issues, disable auth for the feed endpoint and retest.
 
 ## Troubleshooting
 
 ### Feed is empty
-- Check if products are enabled and visible
-- Verify stock status settings
-- Check category filters configuration
-- Verify price range filters
 
-### Feed shows wrong language
-- Verify store code in URL (`?store=uk`)
-- Check products have localized content for store view
-- Ensure "Use Default Value" is unchecked for product attributes
+- Verify `Enable Google Feed` is enabled for the current store scope
+- Verify products are enabled and visible
+- Verify `Include Categories` contains at least one category
+- Check price filters
+- Check stock settings
 
-### Missing attributes (brand, GTIN, MPN)
-- Use dropdown in admin to select correct attributes
-- Ensure attributes exist in catalog
-- Verify products have values for these attributes
+### Feed opens with wrong store data
 
-### Google Product Category not showing in categories
-- Run: `php bin/magento cache:flush`
-- Verify module is enabled
-- Check that `category_form.xml` exists in module
-- Import taxonomy first: `php bin/magento mycompany:googlefeed:import-taxonomy`
+- Use the correct store code in `?store=`
+- Verify localized product content exists for that store view
+- Verify store-specific config values are not inherited unexpectedly
 
-### Google Product Category dropdown is empty
-- Import taxonomy: `php bin/magento mycompany:googlefeed:import-taxonomy`
-- Check that taxonomy was imported for your store locale
-- Verify database table `mycompany_googlefeed_taxonomy` has data
+### Google Product Category picker is empty
 
-### Google Product Category not appearing in feed
-- Assign category to product or product's category
-- Check inheritance chain (product → category → parent categories)
-- Verify taxonomy ID exists in database for current locale
+- Run `php bin/magento mycompany:googlefeed:import-taxonomy`
+- Verify taxonomy exists for the store locale or fallback locale
+- Flush Magento cache
 
-### Products missing in localized feed
-- Check product visibility in specific store view
-- Verify category assignments for store view
-- Check Base URL configuration for store view
+### Saved feed files are missing
 
-### Feed files not generated for all stores
-- Check that stores are enabled in "Generate Feeds for Stores" configuration
-- Verify each store has "Enable Google Feed" set to Yes
-- Check system.log for errors during generation
-- Ensure pub/media/googlefeed/ directory is writable
+- Verify the feed is enabled for the store
+- Verify cron settings or run manual generation from admin
+- Check write permissions for `pub/media/googlefeed/`
 
-### Different products in different language feeds
-- This is expected - each store view can have different:
-  - Product visibility settings
-  - Category assignments
-  - Price ranges (if configured per store)
-- Verify product is enabled and visible in specific store view
+### Brand / GTIN / MPN fields are missing
 
-### Cron not generating files
-- Verify cron is running: `php bin/magento cron:run`
-- Check cron configuration in System Configuration
-- Review var/log/system.log for cron execution logs
-- Ensure "Generate Feeds for Stores" includes desired stores
+- Verify the correct product attributes are selected in configuration
+- Verify products actually contain values for those attributes
 
-### Performance issues
-- Reduce product limit in configuration
-- Enable cache: `php bin/magento cache:enable googlefeed`
-- Use cron for automatic generation (generates during off-peak hours)
-- Generate feeds for stores separately if needed
+## Documentation
 
-## Version History
+Detailed user guides are available here:
 
-- **v1.0.3** (2026-03-04) - Google Product Category Taxonomy
-  - Added Google Product Category taxonomy import from Google servers
-  - Added console command `mycompany:googlefeed:import-taxonomy` for multi-language taxonomy import
-  - Added category-level Google Product Category assignment with UI component
-  - Added automatic inheritance from parent categories to child categories
-  - Added product-level Google Product Category attribute
-  - Added intelligent fallback: product → category → parent category chain
-  - Added `additional_image_link` support for product galleries
-  - Added `product_type` based on category hierarchy path
-  - Fixed deprecated `number_format()` null parameter warning
-  - Multi-language taxonomy support with locale normalization and fallback
-  - Database storage for taxonomy with unique locale-based indexing
-  - Removed admin panel import button (replaced with CLI command)
+- English: `docs/en/USER_GUIDE.md`
+- Ukrainian: `docs/uk/USER_GUIDE.md`
 
-- **v1.0.2** (2026-02-28) - Multi-store enhancement
-  - Added automatic multi-store/multi-language feed generation
-  - Added store selection in cron configuration
-  - Added manual file generation for all stores
-  - Added Feed Management admin page
-  - Descriptive file naming with store name, code, and language (feed_storename_code_lang.xml)
-  - Removed REST API functionality (simplified module)
-  - Each store generates separate feed with localized content
+## Changelog Summary
 
-- **v1.0.1** (2026-02-28) - Security and feature update
-  - Added XML injection prevention
-  - Added URL validation
-  - Fixed information disclosure
-  - Added store ID validation
-  - Added dropdown attribute selection
-  - Added product filters (categories, price)
-  - Added cron support
-  - Added multi-language support
+### v1.0.3
 
-- **v1.0.0** - Initial release
+- Added Google Product Category taxonomy import
+- Added category-level assignment with inheritance
+- Added localized taxonomy storage
+- Added `additional_image_link` and `product_type`
+- Added multi-language taxonomy fallback logic
+
+### v1.0.2
+
+- Added multi-store feed file generation
+- Added Feed Management admin page
+- Added store selection for cron generation
+
+### v1.0.1
+
+- Added security hardening
+- Added product filters
+- Added attribute dropdown mapping
+- Added cron support
+
+### v1.0.0
+
+- Initial release

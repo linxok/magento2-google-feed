@@ -11,6 +11,7 @@
 7. [Automated Feed Generation (Cron)](#7-automated-feed-generation-cron)
 8. [Attribute Mapping](#8-attribute-mapping)
 9. [Troubleshooting](#9-troubleshooting)
+10. [Feed XML Structure](#10-feed-xml-structure)
 
 ---
 
@@ -49,13 +50,17 @@ Starting Google Product Category Taxonomy import...
 Found 2 store view(s) to analyze
 
 [1/2] Store: English Store (ID: 1, Code: en)
-        Locale: en_US → en-US
-        Fetching taxonomy... OK (5627 categories)
+        Locale: en_US
+        Normalized locale: en-US
+        Download URL: https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt
+        Categories found: 5627
         Saving to database... Done
 
 [2/2] Store: Ukrainian Store (ID: 2, Code: uk)
-        Locale: uk_UA → uk-UA
-        Fetching taxonomy... OK (4832 categories)
+        Locale: uk_UA
+        Normalized locale: uk-UA
+        Download URL: https://www.google.com/basepages/producttype/taxonomy-with-ids.uk-UA.txt
+        Categories found: 4832
         Saving to database... Done
 
 Import completed!
@@ -74,9 +79,13 @@ Navigate to: **Stores → Configuration → MyCompany → Google Feed**
 
 | Setting | Description |
 |---|---|
+| Feed URL | Read-only field with direct live feed URLs for store views |
 | Enable Google Feed | Turns feed generation on/off for this store view |
 | Feed Title | Title shown in the XML feed channel |
 | Feed Description | Description shown in the XML feed channel |
+| Enable HTTP Basic Authentication | Protects the feed endpoint with username/password |
+| Authentication Username | Username for feed access when authentication is enabled |
+| Authentication Password | Encrypted password for feed access when authentication is enabled |
 
 ### Feed Settings
 
@@ -97,7 +106,7 @@ Navigate to: **Stores → Configuration → MyCompany → Google Feed**
 | Minimum Price | Skip products cheaper than this |
 | Maximum Price | Skip products more expensive than this |
 
-> **Note:** If both Include and Exclude are set, Include takes priority.
+> **Note:** If both Include and Exclude are set, Include is the main export filter, while Exclude removes products from the selected set.
 
 ### Saving Configuration
 
@@ -120,16 +129,16 @@ After running `import-taxonomy`, categories are stored in the database table `my
 - Full path label (e.g. `Electronics > Communications > Telephony > Mobile Phones`)
 - Locale (e.g. `en-US`, `uk-UA`)
 
-### Inheritance rules
+### Resolution priority
 
-The module automatically resolves which Google Product Category to use for each product by walking up the category tree:
+The module automatically resolves which Google Product Category to use for each product using this priority:
 
 ```
-1. Product's direct category Google Product Category
+1. Product attribute `mycompany_google_product_category`
         ↓ (if not set)
-2. Parent category's Google Product Category
-        ↓ (if not set, traverses up the category tree)
-3. Grandparent category → ... → Root category
+2. Product category Google Product Category
+        ↓ (if not set)
+3. Parent category → ... → Root category
         ↓ (if nothing found)
 4. Field omitted from feed
 ```
@@ -141,7 +150,7 @@ Electronics [Google Category: 222 — Electronics]
   └─ Phones [Google Category: 267 — Mobile Phones]
       └─ Smartphones [No assignment → inherits 267]
           └─ Product A [No assignment → inherits 267]
-          └─ Product B [No assignment → inherits 267]
+          └─ Product B [Product attribute set → uses own value]
 ```
 
 ---
@@ -157,18 +166,16 @@ This sets the Google Product Category at the category level. All products in thi
 3. Scroll down to the **Display Settings** section and expand it
 4. Find the **Google Product Category** field
 5. Click **Select Category** button — a panel will slide open with the full Google taxonomy tree
-6. Use the **search box** at the top to find your category quickly (e.g. type "mobile")
+6. Use the **search box** at the top to find your category quickly (e.g. type `mobile`)
 7. Click **Select** next to the desired category
 8. The field will show the category name; the ID is saved automatically
 9. Click **Save** to save the Magento category
 
-![Category Assignment](../screenshots/category-assignment.png)
-
 ### Using the Category Picker
 
 - **Search**: Type any keyword in the search box — results are highlighted and filtered in real time
-- **Browse**: Click the ▶ arrow next to a parent category to expand it and see children
-- **Select**: Click the blue **Select** button next to any category
+- **Browse**: Click the arrow next to a parent category to expand it and see children
+- **Select**: Click the **Select** button next to any category
 - **Clear**: Use the **Clear** button next to the field to remove the assignment
 
 ---
@@ -197,12 +204,6 @@ Replace `en` or `uk` with your store code.
    - `feed_ukrainian_store_uk_uk.xml`
    - Format: `feed_{store_name}_{store_code}_{language_code}.xml`
 
-### Downloading a Feed File
-
-Navigate to: **Marketing → Google Feed → Download Feed XML**
-
-This downloads the XML feed for the currently selected store view.
-
 ### Adding Feed to Google Merchant Center
 
 1. Log in to [Google Merchant Center](https://merchants.google.com)
@@ -210,12 +211,19 @@ This downloads the XML feed for the currently selected store view.
 3. Click **+** to add a new feed
 4. Set country, language, and feed name
 5. Choose **Scheduled fetch** or **Upload**
-6. For Scheduled fetch, enter the feed URL:
+6. For Scheduled fetch, enter the saved feed file URL:
    ```
    https://yourstore.com/media/googlefeed/feed_english_store_en_en.xml
    ```
 7. Set fetch frequency (daily recommended)
 8. Save and wait for Google to process the feed
+
+### Feed Authentication
+
+If you enable **HTTP Basic Authentication** in module configuration, the live feed URL will require credentials.
+
+- Use this only if your feed consumer supports basic auth
+- If Google Merchant Center reports authentication errors, disable feed authentication and retest
 
 ---
 
@@ -233,7 +241,7 @@ Each store view gets its own feed with localized content (product names, descrip
 2. **Configure each store view separately:**
    - In admin top-left, switch to the store view
    - Go to **Stores → Configuration → MyCompany → Google Feed**
-   - Uncheck "Use Website" / "Use Default" for settings you want to customize
+   - Uncheck `Use Website` / `Use Default` for settings you want to customize
    - Enable the feed, set filters specific to that store
    - Save
 
@@ -261,7 +269,7 @@ Configure in: **Stores → Configuration → MyCompany → Google Feed → Autom
 | Generation Frequency | `daily` / `twice daily` / `every 6h` / `hourly` / `weekly` |
 | Generation Time | Time to run in `HH:MM` format (e.g. `03:00`) |
 | Generate Feeds for Stores | Select specific stores or leave empty for all active stores |
-| Save Feed to File | Base file path (e.g. `googlefeed/feed.xml`) |
+| Generated Feed Files | Displays generated files saved in `pub/media/googlefeed/` |
 
 ### How to verify cron is working
 
@@ -284,6 +292,7 @@ All fields use **dropdown selection** — you choose from existing Magento produ
 | Brand | Brand Attribute | `g:brand` |
 | GTIN/UPC/EAN | GTIN Attribute | `g:gtin` |
 | MPN | MPN Attribute | `g:mpn` |
+| Missing GTIN handling | Set Identifier Exists to No When GTIN Is Missing | `g:identifier_exists` |
 | Condition | Condition Attribute | `g:condition` |
 | Color | Color Attribute | `g:color` |
 | Size | Size Attribute | `g:size` |
@@ -297,6 +306,8 @@ All fields use **dropdown selection** — you choose from existing Magento produ
 3. If the attribute doesn't exist, create it first in **Stores → Attributes → Product**
 4. Save config and flush cache
 
+When **Set Identifier Exists to No When GTIN Is Missing** is enabled, products without GTIN are exported with `g:identifier_exists` set to `no`.
+
 ---
 
 ## 9. Troubleshooting
@@ -304,7 +315,7 @@ All fields use **dropdown selection** — you choose from existing Magento produ
 ### Feed is empty
 - Check that **Enable Google Feed** is set to **Yes** for the store view
 - Verify products are **enabled** and **visible** in catalog
-- Check **Include Categories** filter — if set, only those categories are exported
+- Check **Include Categories** filter — if not configured, the module exports no products by default
 - Verify **Minimum/Maximum Price** filters don't exclude all products
 
 ### Google Product Category not showing in category form
@@ -324,19 +335,65 @@ php bin/magento mycompany:googlefeed:import-taxonomy
 ### Feed shows wrong language
 - Make sure you're accessing the feed with the correct store code: `?store=uk`
 - Products must have localized content saved for that specific store view
-- Check **Use Default Value** is unchecked for product name/description in that store view
+- Check `Use Default Value` is unchecked for product name/description in that store view
 
 ### Feed files not generated
 - Check `pub/media/googlefeed/` directory exists and is writable:
   ```bash
   chmod 775 pub/media/googlefeed/
   ```
+- Verify the feed is enabled for the target store view
 - Verify **Enable Automatic Generation** is set to **Yes**
 - Check cron is running: `php bin/magento cron:run`
 - Review: `var/log/system.log`
+
+### Feed returns authentication error
+- Check whether **Enable HTTP Basic Authentication** is enabled in configuration
+- Verify the username and password
+- If Google Merchant Center cannot access the feed, disable authentication and test again
 
 ### Performance issues with large catalogs
 - Reduce **Products Limit** in configuration
 - Enable the feed cache: `php bin/magento cache:enable googlefeed`
 - Use cron generation (runs during off-peak hours) instead of on-demand
 - Use category filters to export only relevant products
+
+---
+
+## 10. Feed XML Structure
+
+The module generates XML in Google Shopping format with all required and recommended fields:
+
+### Required Fields
+
+| XML Tag | Description | Source |
+|---|---|---|
+| `g:id` | Unique identifier | Product SKU |
+| `g:title` | Product title | Store view product name |
+| `g:description` | Product description | Short/full description |
+| `g:link` | Product URL | Store view product URL |
+| `g:image_link` | Main image URL | Product base image |
+| `g:price` | Price with currency | Store view price |
+| `g:availability` | Stock availability | Inventory status |
+| `g:condition` | Product condition | Attribute or default config |
+
+### Recommended Fields
+
+| XML Tag | Description | Source |
+|---|---|---|
+| `g:brand` | Brand | Attribute mapping |
+| `g:gtin` | GTIN/UPC/EAN | Attribute mapping |
+| `g:mpn` | Manufacturer part number | Attribute mapping |
+| `g:identifier_exists` | Identifier presence flag | GTIN handling setting |
+| `g:google_product_category` | Google category | Product → Category → Parent category |
+| `g:product_type` | Product type | Store category path |
+| `g:additional_image_link` | Additional images | Product gallery |
+
+### Apparel Fields
+
+| XML Tag | Description |
+|---|---|
+| `g:color` | Color |
+| `g:size` | Size |
+| `g:gender` | Gender |
+| `g:age_group` | Age group |

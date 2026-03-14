@@ -94,18 +94,19 @@ class FeedGenerator
      * @param LoggerInterface $logger
      */
     public function __construct(
-        CollectionFactory $productCollectionFactory,
-        Image $imageHelper,
-        StoreManagerInterface $storeManager,
-        ScopeConfigInterface $scopeConfig,
-        PriceCurrencyInterface $priceCurrency,
-        StockRegistryInterface $stockRegistry,
-        ProductRepositoryInterface $productRepository,
-        CategoryRepositoryInterface $categoryRepository,
+        CollectionFactory            $productCollectionFactory,
+        Image                        $imageHelper,
+        StoreManagerInterface        $storeManager,
+        ScopeConfigInterface         $scopeConfig,
+        PriceCurrencyInterface       $priceCurrency,
+        StockRegistryInterface       $stockRegistry,
+        ProductRepositoryInterface   $productRepository,
+        CategoryRepositoryInterface  $categoryRepository,
         SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
-        GoogleCategoryStorage $googleCategoryStorage,
-        LoggerInterface $logger
-    ) {
+        GoogleCategoryStorage        $googleCategoryStorage,
+        LoggerInterface              $logger
+    )
+    {
         $this->productCollectionFactory = $productCollectionFactory;
         $this->imageHelper = $imageHelper;
         $this->storeManager = $storeManager;
@@ -299,7 +300,7 @@ class FeedGenerator
                 // Skip the main image and limit to 10 additional images (Google limit)
                 if ($image->getFile() !== $product->getImage() && $count < 10) {
                     $additionalImageUrl = $this->storeManager->getStore()
-                        ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA)
+                            ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA)
                         . 'catalog/product' . $image->getFile();
                     $additionalImages[] = $this->sanitizeUrl($additionalImageUrl);
                     $count++;
@@ -723,9 +724,9 @@ class FeedGenerator
         }
 
         return rtrim(
-            $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA),
-            '/'
-        ) . '/catalog/product' . $imageFile;
+                $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA),
+                '/'
+            ) . '/catalog/product' . $imageFile;
     }
 
     /**

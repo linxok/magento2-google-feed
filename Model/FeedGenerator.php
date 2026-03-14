@@ -135,7 +135,7 @@ class FeedGenerator
         $xml->writeAttribute('xmlns:g', 'http://base.google.com/ns/1.0');
 
         $xml->startElement('channel');
-        
+
         // Channel information
         $xml->writeElement('title', $this->getConfigValue('googlefeed/general/title'));
         $xml->writeElement('link', $this->getNormalizedStoreBaseUrl());
@@ -144,7 +144,7 @@ class FeedGenerator
         // Add products
         $products = $this->getProductCollection();
         $includeOutOfStock = $this->getConfigValue('googlefeed/feed/include_out_of_stock');
-        
+
         foreach ($products as $product) {
             // Skip out of stock products if configured
             if (!$includeOutOfStock) {
@@ -153,7 +153,7 @@ class FeedGenerator
                     continue;
                 }
             }
-            
+
             $this->addProductToFeed($xml, $product);
         }
 
@@ -172,11 +172,11 @@ class FeedGenerator
     {
         // Use Collection - it works better with EAV attributes
         $collection = $this->productCollectionFactory->create();
-        
+
         // Set store context - CRITICAL for EAV attributes
         $storeId = $this->storeManager->getStore()->getId();
         $collection->addStoreFilter($storeId);
-        
+
         // Add minimal required attributes
         $collection->addAttributeToSelect([
             'entity_id',
@@ -193,13 +193,13 @@ class FeedGenerator
         if (!empty($configuredAttributeCodes)) {
             $collection->addAttributeToSelect($configuredAttributeCodes);
         }
-        
+
         // Add media gallery to load additional images
         $collection->addMediaGalleryData();
-        
+
         // Filter by status - enabled only
         $collection->addAttributeToFilter('status', 1);
-        
+
         // Filter by visibility
         $collection->addAttributeToFilter('visibility', [
             'in' => [
@@ -208,17 +208,17 @@ class FeedGenerator
                 Visibility::VISIBILITY_IN_SEARCH
             ]
         ]);
-        
+
         // Category filters - Include specific categories
         $includeCategories = $this->getConfigValue('googlefeed/filters/category_ids');
-        
+
         // If category filter is not configured at all (null), don't show any products by default
         // This prevents accidentally exporting entire catalog before configuration
         if ($includeCategories === null) {
             $collection->addCategoriesFilter(['in' => [0]]);
         } else {
             $trimmedValue = trim((string)$includeCategories);
-            
+
             if ($trimmedValue !== '') {
                 // Parse category IDs
                 $categoryIds = array_filter(array_map('trim', explode(',', $trimmedValue)));
@@ -233,7 +233,7 @@ class FeedGenerator
                 $collection->addCategoriesFilter(['in' => [0]]);
             }
         }
-        
+
         // Category filters - Exclude specific categories
         $excludeCategories = $this->getConfigValue('googlefeed/filters/exclude_categories');
         if ($excludeCategories && trim($excludeCategories) !== '') {
@@ -242,18 +242,18 @@ class FeedGenerator
                 $collection->addCategoriesFilter(['nin' => $categoryIds]);
             }
         }
-        
+
         // Price filters
         $minPrice = $this->getConfigValue('googlefeed/filters/min_price');
         if ($minPrice !== null && $minPrice !== '') {
             $collection->addAttributeToFilter('price', ['gteq' => (float)$minPrice]);
         }
-        
+
         $maxPrice = $this->getConfigValue('googlefeed/filters/max_price');
         if ($maxPrice !== null && $maxPrice !== '') {
             $collection->addAttributeToFilter('price', ['lteq' => (float)$maxPrice]);
         }
-        
+
         // Set limit
         $limit = $this->getConfigValue('googlefeed/feed/limit');
         if ($limit && $limit > 0) {
@@ -261,9 +261,9 @@ class FeedGenerator
         } else {
             $collection->setPageSize(1000);
         }
-        
+
         $collection->setCurPage(1);
-        
+
         return $collection;
     }
 
@@ -275,20 +275,20 @@ class FeedGenerator
     protected function addProductToFeed(\XMLWriter $xml, $product)
     {
         $xml->startElement('item');
-        
+
         // Basic product information - XMLWriter automatically escapes content
         $xml->writeElement('g:id', $this->sanitizeXmlValue($product->getSku()));
         $xml->writeElement('g:title', $this->sanitizeXmlValue($product->getName()));
         $description = $product->getDescription() ?: $product->getShortDescription() ?: $product->getName();
         $xml->writeElement('g:description', $this->sanitizeXmlValue(strip_tags($description ?? '')));
         $xml->writeElement('g:link', $this->sanitizeUrl($this->getProductFeedUrl($product)));
-        
+
         // Image
         $imageUrl = $this->getProductImageUrl($product);
         if ($imageUrl !== '') {
             $xml->writeElement('g:image_link', $this->sanitizeUrl($imageUrl));
         }
-        
+
         // Additional images
         $mediaGallery = $product->getMediaGalleryImages();
         if ($mediaGallery && $mediaGallery->getSize() > 1) {
@@ -299,7 +299,7 @@ class FeedGenerator
                 // Skip the main image and limit to 10 additional images (Google limit)
                 if ($image->getFile() !== $product->getImage() && $count < 10) {
                     $additionalImageUrl = $this->storeManager->getStore()
-                        ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA) 
+                        ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA)
                         . 'catalog/product' . $image->getFile();
                     $additionalImages[] = $this->sanitizeUrl($additionalImageUrl);
                     $count++;
@@ -311,18 +311,18 @@ class FeedGenerator
                 }
             }
         }
-        
+
         // Price
         $basePrice = $product->getPrice();
         $configCurrency = $this->getConfigValue('googlefeed/feed/currency');
         $currency = $configCurrency ?: $this->storeManager->getStore()->getCurrentCurrency()->getCode();
-        
+
         // Skip product if price is not set
         if ($basePrice === null || $basePrice === '') {
             $this->logger->warning('Product ' . $product->getSku() . ' has no price set, skipping');
             return;
         }
-        
+
         // Convert price to feed currency if different from base currency
         $baseCurrencyCode = $this->storeManager->getStore()->getBaseCurrencyCode();
         if ($currency !== $baseCurrencyCode) {
@@ -331,29 +331,29 @@ class FeedGenerator
         } else {
             $priceValue = $basePrice;
         }
-        
+
         $priceFormatted = number_format((float)$priceValue, 2, '.', '');
         $xml->writeElement('g:price', $priceFormatted . ' ' . $currency);
-        
+
         // Availability
         $stockItem = $this->stockRegistry->getStockItem($product->getId());
-        $availability = $stockItem->getIsInStock() ? 'in stock' : 'out of stock';
+        $availability = $stockItem->getIsInStock() ? 'in_stock' : 'out_of_stock';
         $xml->writeElement('g:availability', $availability);
-        
+
         // Brand (if attribute exists)
         $brandAttribute = $this->getConfigValue('googlefeed/attributes/brand_attribute');
         $brandValue = $this->getProductAttributeValue($product, $brandAttribute);
         if ($brandValue !== '') {
             $xml->writeElement('g:brand', $this->sanitizeXmlValue($brandValue));
         }
-        
+
         // GTIN (if attribute exists)
         $gtinAttribute = $this->getConfigValue('googlefeed/attributes/gtin_attribute');
         $gtinValue = $this->getProductAttributeValue($product, $gtinAttribute);
         if ($gtinValue !== '') {
             $xml->writeElement('g:gtin', $this->sanitizeXmlValue($gtinValue));
         }
-        
+
         // MPN (if attribute exists)
         $mpnAttribute = $this->getConfigValue('googlefeed/attributes/mpn_attribute');
         $mpnValue = $this->getProductAttributeValue($product, $mpnAttribute);
@@ -365,7 +365,7 @@ class FeedGenerator
         if ($gtinValue === '' && $identifierExistsNoGtin) {
             $xml->writeElement('g:identifier_exists', 'no');
         }
-        
+
         // Condition
         $conditionAttribute = $this->getConfigValue('googlefeed/attributes/condition_attribute');
         $condition = 'new';
@@ -383,7 +383,7 @@ class FeedGenerator
             $condition = $this->getConfigValue('googlefeed/feed/condition') ?: 'new';
         }
         $xml->writeElement('g:condition', $this->sanitizeXmlValue($condition));
-        
+
         // Google Product Category
         $googleCategoryValue = $this->resolveGoogleCategoryValue($product);
         if ($googleCategoryValue !== null && $googleCategoryValue !== '') {
@@ -392,23 +392,23 @@ class FeedGenerator
                 $this->sanitizeXmlValue($this->mapGoogleCategoryValueForFeed($googleCategoryValue))
             );
         }
-        
+
         // Product Type (Magento category)
         $categoryIds = $product->getCategoryIds();
         if (!empty($categoryIds)) {
             try {
                 $storeId = $this->storeManager->getStore()->getId();
                 $rootCategoryId = $this->storeManager->getStore()->getRootCategoryId();
-                
+
                 // Filter categories by current store's root category tree
                 $validCategory = null;
                 $maxLevel = 0;
-                
+
                 foreach ($categoryIds as $categoryId) {
                     try {
                         $category = $this->categoryRepository->get($categoryId, $storeId);
                         $pathIds = explode('/', $category->getPath());
-                        
+
                         // Check if category belongs to current store's root category
                         if (in_array($rootCategoryId, $pathIds)) {
                             // Select the deepest category (most specific)
@@ -421,7 +421,7 @@ class FeedGenerator
                         continue;
                     }
                 }
-                
+
                 if ($validCategory && $validCategory->getName()) {
                     $categoryPath = $this->getCategoryPath($validCategory);
                     $xml->writeElement('g:product_type', $this->sanitizeXmlValue($categoryPath));
@@ -430,7 +430,7 @@ class FeedGenerator
                 $this->logger->error('Error getting category for product ' . $product->getSku() . ': ' . $e->getMessage());
             }
         }
-        
+
         // Color
         $colorAttribute = $this->getConfigValue('googlefeed/attributes/color_attribute');
         if ($colorAttribute && $product->getData($colorAttribute)) {
@@ -444,7 +444,7 @@ class FeedGenerator
                 $xml->writeElement('g:color', $this->sanitizeXmlValue($product->getData($colorAttribute)));
             }
         }
-        
+
         // Size
         $sizeAttribute = $this->getConfigValue('googlefeed/attributes/size_attribute');
         if ($sizeAttribute && $product->getData($sizeAttribute)) {
@@ -458,7 +458,7 @@ class FeedGenerator
                 $xml->writeElement('g:size', $this->sanitizeXmlValue($product->getData($sizeAttribute)));
             }
         }
-        
+
         // Gender
         $genderAttribute = $this->getConfigValue('googlefeed/attributes/gender_attribute');
         if ($genderAttribute && $product->getData($genderAttribute)) {
@@ -472,7 +472,7 @@ class FeedGenerator
                 $xml->writeElement('g:gender', $this->sanitizeXmlValue(strtolower($product->getData($genderAttribute))));
             }
         }
-        
+
         // Age Group
         $ageGroupAttribute = $this->getConfigValue('googlefeed/attributes/age_group_attribute');
         if ($ageGroupAttribute && $product->getData($ageGroupAttribute)) {
@@ -500,12 +500,12 @@ class FeedGenerator
         $pathIds = explode('/', $category->getPath());
         $categoryNames = [];
         $rootCategoryId = $this->storeManager->getStore()->getRootCategoryId();
-        
+
         foreach ($pathIds as $categoryId) {
             if ($categoryId <= 1 || $categoryId == $rootCategoryId) {
                 continue;
             }
-            
+
             try {
                 $cat = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
                 if ($cat && $cat->getName()) {
@@ -515,7 +515,7 @@ class FeedGenerator
                 continue;
             }
         }
-        
+
         return implode(' > ', $categoryNames);
     }
 

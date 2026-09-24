@@ -69,6 +69,7 @@ class AddHierarchyToTaxonomyTable implements SchemaPatchInterface
                         'type' => Table::TYPE_TEXT,
                         'length' => 255,
                         'nullable' => false,
+                        'default' => '',
                         'comment' => 'Category Name',
                         'after' => 'level'
                     ]

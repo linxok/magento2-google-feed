@@ -68,19 +68,23 @@ class GoogleCategoryStorage
         $connection = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
 
-        $connection->delete($tableName, ['locale_code = ?' => $localeCode]);
+        // Replace atomically: a failed insert must not wipe the previously imported taxonomy.
+        $connection->beginTransaction();
+        try {
+            $connection->delete($tableName, ['locale_code = ?' => $localeCode]);
+
+            $hierarchyData = $this->buildHierarchyData($rows, $localeCode);
+            if (!empty($hierarchyData)) {
+                $connection->insertMultiple($tableName, $hierarchyData);
+            }
+
+            $connection->commit();
+        } catch (\Exception $e) {
+            $connection->rollBack();
+            throw $e;
+        }
 
         $this->resetCaches();
-
-        if (empty($rows)) {
-            return;
-        }
-
-        $hierarchyData = $this->buildHierarchyData($rows, $localeCode);
-        
-        if (!empty($hierarchyData)) {
-            $connection->insertMultiple($tableName, $hierarchyData);
-        }
     }
 
     /**

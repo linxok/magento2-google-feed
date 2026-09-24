@@ -13,10 +13,7 @@ use Magento\Store\Model\ScopeInterface;
 use Magento\Catalog\Model\Product\Visibility;
 use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
-use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\Catalog\Api\CategoryRepositoryInterface;
-use Magento\Framework\Api\SearchCriteriaBuilder;
-use Magento\Framework\Api\SearchCriteriaBuilderFactory;
 use Psr\Log\LoggerInterface;
 
 class FeedGenerator
@@ -49,19 +46,16 @@ class FeedGenerator
     protected $stockRegistry;
 
     /**
-     * @var ProductRepositoryInterface
-     */
-    protected $productRepository;
-
-    /**
-     * @var SearchCriteriaBuilderFactory
-     */
-    protected $searchCriteriaBuilderFactory;
-
-    /**
      * @var LoggerInterface
      */
     protected $logger;
+
+    /**
+     * In-memory category cache keyed by "storeId:categoryId" to avoid N+1 repository loads.
+     *
+     * @var array
+     */
+    private $categoryCache = [];
 
     /**
      * @var CategoryRepositoryInterface
@@ -85,25 +79,21 @@ class FeedGenerator
      * @param ScopeConfigInterface $scopeConfig
      * @param PriceCurrencyInterface $priceCurrency
      * @param StockRegistryInterface $stockRegistry
-     * @param ProductRepositoryInterface $productRepository
      * @param CategoryRepositoryInterface $categoryRepository
-     * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param GoogleCategoryStorage $googleCategoryStorage
      * @param StoreUrlResolver $storeUrlResolver
      * @param LoggerInterface $logger
      */
     public function __construct(
-        CollectionFactory            $productCollectionFactory,
-        StoreManagerInterface        $storeManager,
-        ScopeConfigInterface         $scopeConfig,
-        PriceCurrencyInterface       $priceCurrency,
-        StockRegistryInterface       $stockRegistry,
-        ProductRepositoryInterface   $productRepository,
-        CategoryRepositoryInterface  $categoryRepository,
-        SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
-        GoogleCategoryStorage        $googleCategoryStorage,
-        StoreUrlResolver             $storeUrlResolver,
-        LoggerInterface              $logger
+        CollectionFactory           $productCollectionFactory,
+        StoreManagerInterface       $storeManager,
+        ScopeConfigInterface        $scopeConfig,
+        PriceCurrencyInterface      $priceCurrency,
+        StockRegistryInterface      $stockRegistry,
+        CategoryRepositoryInterface $categoryRepository,
+        GoogleCategoryStorage       $googleCategoryStorage,
+        StoreUrlResolver            $storeUrlResolver,
+        LoggerInterface             $logger
     )
     {
         $this->productCollectionFactory = $productCollectionFactory;
@@ -111,9 +101,7 @@ class FeedGenerator
         $this->scopeConfig = $scopeConfig;
         $this->priceCurrency = $priceCurrency;
         $this->stockRegistry = $stockRegistry;
-        $this->productRepository = $productRepository;
         $this->categoryRepository = $categoryRepository;
-        $this->searchCriteriaBuilderFactory = $searchCriteriaBuilderFactory;
         $this->googleCategoryStorage = $googleCategoryStorage;
         $this->storeUrlResolver = $storeUrlResolver;
         $this->logger = $logger;
@@ -146,15 +134,16 @@ class FeedGenerator
         $includeOutOfStock = $this->getConfigValue('googlefeed/feed/include_out_of_stock');
 
         foreach ($products as $product) {
+            // Fetch stock once per product and reuse it for both filtering and availability.
+            $stockItem = $this->stockRegistry->getStockItem($product->getId());
+            $isInStock = (bool)$stockItem->getIsInStock();
+
             // Skip out of stock products if configured
-            if (!$includeOutOfStock) {
-                $stockItem = $this->stockRegistry->getStockItem($product->getId());
-                if (!$stockItem->getIsInStock()) {
-                    continue;
-                }
+            if (!$includeOutOfStock && !$isInStock) {
+                continue;
             }
 
-            $this->addProductToFeed($xml, $product);
+            $this->addProductToFeed($xml, $product, $isInStock);
         }
 
         $xml->endElement(); // channel
@@ -252,11 +241,12 @@ class FeedGenerator
      * Add product to feed
      * @param \XMLWriter $xml
      * @param \Magento\Catalog\Model\Product $product
+     * @param bool $isInStock
      */
-    protected function addProductToFeed(\XMLWriter $xml, $product)
+    protected function addProductToFeed(\XMLWriter $xml, $product, $isInStock)
     {
         $basePrice = $product->getPrice();
-        if ($basePrice === null || $basePrice === '') {
+        if (($basePrice === null || $basePrice === '') && !$this->hasPositivePrice($product)) {
             $this->logger->warning('Product ' . $product->getSku() . ' has no price set, skipping');
             return;
         }
@@ -264,7 +254,7 @@ class FeedGenerator
         $xml->startElement('item');
 
         try {
-            $this->writeItemContent($xml, $product, $basePrice);
+            $this->writeItemContent($xml, $product, (float)$basePrice, $isInStock);
         } catch (\Exception $e) {
             $this->logger->error(sprintf(
                 'Google Feed: error building feed item for product "%s": %s',
@@ -282,9 +272,10 @@ class FeedGenerator
      * @param \XMLWriter $xml
      * @param \Magento\Catalog\Model\Product $product
      * @param float|string $basePrice
+     * @param bool $isInStock
      * @return void
      */
-    protected function writeItemContent(\XMLWriter $xml, $product, $basePrice)
+    protected function writeItemContent(\XMLWriter $xml, $product, $basePrice, $isInStock)
     {
         // Basic product information - XMLWriter automatically escapes content
         $xml->writeElement('g:id', $this->sanitizeXmlValue($product->getSku()));
@@ -319,26 +310,25 @@ class FeedGenerator
             }
         }
 
-        // Price
+        // Price: g:price is the regular price, g:sale_price holds the discounted price when present.
+        $regularPrice = (float)$basePrice;
+        $finalPrice = $this->getProductFinalPrice($product);
+        $salePrice = ($finalPrice > 0 && $finalPrice < $regularPrice) ? $finalPrice : null;
+        $displayPrice = $regularPrice > 0 ? $regularPrice : $finalPrice;
+
         $configCurrency = $this->getConfigValue('googlefeed/feed/currency');
         $currency = $configCurrency ?: $this->storeManager->getStore()->getCurrentCurrency()->getCode();
 
         // Convert price to feed currency if different from base currency
         $baseCurrencyCode = $this->storeManager->getStore()->getBaseCurrencyCode();
-        if ($currency !== $baseCurrencyCode) {
-            // Convert from base currency to feed currency
-            $priceValue = $this->priceCurrency->convert($basePrice, null, $currency);
-        } else {
-            $priceValue = $basePrice;
+
+        $xml->writeElement('g:price', $this->formatFeedPrice($displayPrice, $currency, $baseCurrencyCode));
+        if ($salePrice !== null) {
+            $xml->writeElement('g:sale_price', $this->formatFeedPrice($salePrice, $currency, $baseCurrencyCode));
         }
 
-        $priceFormatted = number_format((float)$priceValue, 2, '.', '');
-        $xml->writeElement('g:price', $priceFormatted . ' ' . $currency);
-
         // Availability
-        $stockItem = $this->stockRegistry->getStockItem($product->getId());
-        $availability = $stockItem->getIsInStock() ? 'in_stock' : 'out_of_stock';
-        $xml->writeElement('g:availability', $availability);
+        $xml->writeElement('g:availability', $isInStock ? 'in_stock' : 'out_of_stock');
 
         // Brand (if attribute exists)
         $brandAttribute = $this->getConfigValue('googlefeed/attributes/brand_attribute');
@@ -347,9 +337,9 @@ class FeedGenerator
             $xml->writeElement('g:brand', $this->sanitizeXmlValue($brandValue));
         }
 
-        // GTIN (if attribute exists)
+        // GTIN (if attribute exists). Google expects digits only.
         $gtinAttribute = $this->getConfigValue('googlefeed/attributes/gtin_attribute');
-        $gtinValue = $this->getProductAttributeValue($product, $gtinAttribute);
+        $gtinValue = preg_replace('/\D/', '', $this->getProductAttributeValue($product, $gtinAttribute));
         if ($gtinValue !== '') {
             $xml->writeElement('g:gtin', $this->sanitizeXmlValue($gtinValue));
         }
@@ -361,28 +351,22 @@ class FeedGenerator
             $xml->writeElement('g:mpn', $this->sanitizeXmlValue($mpnValue));
         }
 
+        // identifier_exists=no only when neither GTIN nor brand+MPN pair is available.
         $identifierExistsNoGtin = $this->getConfigValue('googlefeed/attributes/identifier_exists_no_gtin');
-        if ($gtinValue === '' && $identifierExistsNoGtin) {
+        $hasBrandAndMpn = $brandValue !== '' && $mpnValue !== '';
+        if ($gtinValue === '' && !$hasBrandAndMpn && $identifierExistsNoGtin) {
             $xml->writeElement('g:identifier_exists', 'no');
         }
 
-        // Condition
+        // Condition mapped to the Google enum: new | refurbished | used.
         $conditionAttribute = $this->getConfigValue('googlefeed/attributes/condition_attribute');
-        $condition = 'new';
-        if ($conditionAttribute && $product->getData($conditionAttribute)) {
-            $attribute = $product->getResource()->getAttribute($conditionAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $conditionValue = $product->getAttributeText($conditionAttribute);
-                if ($conditionValue) {
-                    $condition = strtolower($conditionValue);
-                }
-            } elseif ($product->getData($conditionAttribute)) {
-                $condition = strtolower($product->getData($conditionAttribute));
-            }
-        } else {
-            $condition = $this->getConfigValue('googlefeed/feed/condition') ?: 'new';
+        $condition = $this->mapConditionValue(
+            $this->getProductAttributeValue($product, $conditionAttribute)
+        );
+        if ($condition === null) {
+            $condition = $this->mapConditionValue($this->getConfigValue('googlefeed/feed/condition')) ?: 'new';
         }
-        $xml->writeElement('g:condition', $this->sanitizeXmlValue($condition));
+        $xml->writeElement('g:condition', $condition);
 
         // Google Product Category
         $googleCategoryValue = $this->resolveGoogleCategoryValue($product);
@@ -405,20 +389,20 @@ class FeedGenerator
                 $maxLevel = 0;
 
                 foreach ($categoryIds as $categoryId) {
-                    try {
-                        $category = $this->categoryRepository->get($categoryId, $storeId);
-                        $pathIds = explode('/', $category->getPath());
-
-                        // Check if category belongs to current store's root category
-                        if (in_array($rootCategoryId, $pathIds)) {
-                            // Select the deepest category (most specific)
-                            if ($category->getLevel() > $maxLevel) {
-                                $maxLevel = $category->getLevel();
-                                $validCategory = $category;
-                            }
-                        }
-                    } catch (\Exception $e) {
+                    $category = $this->getCategoryById($categoryId, $storeId);
+                    if ($category === null) {
                         continue;
+                    }
+
+                    $pathIds = explode('/', (string)$category->getPath());
+
+                    // Check if category belongs to current store's root category
+                    if (in_array($rootCategoryId, $pathIds)) {
+                        // Select the deepest category (most specific)
+                        if ($category->getLevel() > $maxLevel) {
+                            $maxLevel = $category->getLevel();
+                            $validCategory = $category;
+                        }
                     }
                 }
 
@@ -433,58 +417,34 @@ class FeedGenerator
 
         // Color
         $colorAttribute = $this->getConfigValue('googlefeed/attributes/color_attribute');
-        if ($colorAttribute && $product->getData($colorAttribute)) {
-            $attribute = $product->getResource()->getAttribute($colorAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $colorValue = $product->getAttributeText($colorAttribute);
-                if ($colorValue) {
-                    $xml->writeElement('g:color', $this->sanitizeXmlValue($colorValue));
-                }
-            } elseif ($product->getData($colorAttribute)) {
-                $xml->writeElement('g:color', $this->sanitizeXmlValue($product->getData($colorAttribute)));
-            }
+        $colorValue = $this->getProductAttributeValue($product, $colorAttribute);
+        if ($colorValue !== '') {
+            $xml->writeElement('g:color', $this->sanitizeXmlValue($colorValue));
         }
 
         // Size
         $sizeAttribute = $this->getConfigValue('googlefeed/attributes/size_attribute');
-        if ($sizeAttribute && $product->getData($sizeAttribute)) {
-            $attribute = $product->getResource()->getAttribute($sizeAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $sizeValue = $product->getAttributeText($sizeAttribute);
-                if ($sizeValue) {
-                    $xml->writeElement('g:size', $this->sanitizeXmlValue($sizeValue));
-                }
-            } elseif ($product->getData($sizeAttribute)) {
-                $xml->writeElement('g:size', $this->sanitizeXmlValue($product->getData($sizeAttribute)));
-            }
+        $sizeValue = $this->getProductAttributeValue($product, $sizeAttribute);
+        if ($sizeValue !== '') {
+            $xml->writeElement('g:size', $this->sanitizeXmlValue($sizeValue));
         }
 
-        // Gender
+        // Gender mapped to the Google enum: male | female | unisex.
         $genderAttribute = $this->getConfigValue('googlefeed/attributes/gender_attribute');
-        if ($genderAttribute && $product->getData($genderAttribute)) {
-            $attribute = $product->getResource()->getAttribute($genderAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $genderValue = $product->getAttributeText($genderAttribute);
-                if ($genderValue) {
-                    $xml->writeElement('g:gender', $this->sanitizeXmlValue(strtolower($genderValue)));
-                }
-            } elseif ($product->getData($genderAttribute)) {
-                $xml->writeElement('g:gender', $this->sanitizeXmlValue(strtolower($product->getData($genderAttribute))));
-            }
+        $genderValue = $this->mapGenderValue(
+            $this->getProductAttributeValue($product, $genderAttribute)
+        );
+        if ($genderValue !== null) {
+            $xml->writeElement('g:gender', $genderValue);
         }
 
-        // Age Group
+        // Age group mapped to the Google enum: newborn | infant | toddler | kids | adult.
         $ageGroupAttribute = $this->getConfigValue('googlefeed/attributes/age_group_attribute');
-        if ($ageGroupAttribute && $product->getData($ageGroupAttribute)) {
-            $attribute = $product->getResource()->getAttribute($ageGroupAttribute);
-            if ($attribute && $attribute->usesSource()) {
-                $ageGroupValue = $product->getAttributeText($ageGroupAttribute);
-                if ($ageGroupValue) {
-                    $xml->writeElement('g:age_group', $this->sanitizeXmlValue(strtolower($ageGroupValue)));
-                }
-            } elseif ($product->getData($ageGroupAttribute)) {
-                $xml->writeElement('g:age_group', $this->sanitizeXmlValue(strtolower($product->getData($ageGroupAttribute))));
-            }
+        $ageGroupValue = $this->mapAgeGroupValue(
+            $this->getProductAttributeValue($product, $ageGroupAttribute)
+        );
+        if ($ageGroupValue !== null) {
+            $xml->writeElement('g:age_group', $ageGroupValue);
         }
     }
 
@@ -495,8 +455,9 @@ class FeedGenerator
      */
     protected function getCategoryPath($category)
     {
-        $pathIds = explode('/', $category->getPath());
+        $pathIds = explode('/', (string)$category->getPath());
         $categoryNames = [];
+        $storeId = $this->storeManager->getStore()->getId();
         $rootCategoryId = $this->storeManager->getStore()->getRootCategoryId();
 
         foreach ($pathIds as $categoryId) {
@@ -504,17 +465,39 @@ class FeedGenerator
                 continue;
             }
 
-            try {
-                $cat = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
-                if ($cat && $cat->getName()) {
-                    $categoryNames[] = $cat->getName();
-                }
-            } catch (\Exception $e) {
-                continue;
+            $cat = $this->getCategoryById($categoryId, $storeId);
+            if ($cat && $cat->getName()) {
+                $categoryNames[] = $cat->getName();
             }
         }
 
         return implode(' > ', $categoryNames);
+    }
+
+    /**
+     * Load a category once per store and memoize it to avoid repeated repository lookups.
+     *
+     * @param int|string $categoryId
+     * @param int|string $storeId
+     * @return \Magento\Catalog\Api\Data\CategoryInterface|null
+     */
+    protected function getCategoryById($categoryId, $storeId)
+    {
+        $categoryId = (int)$categoryId;
+        if ($categoryId <= 0) {
+            return null;
+        }
+
+        $cacheKey = (int)$storeId . ':' . $categoryId;
+        if (!array_key_exists($cacheKey, $this->categoryCache)) {
+            try {
+                $this->categoryCache[$cacheKey] = $this->categoryRepository->get($categoryId, (int)$storeId);
+            } catch (\Exception $e) {
+                $this->categoryCache[$cacheKey] = null;
+            }
+        }
+
+        return $this->categoryCache[$cacheKey];
     }
 
     /**
@@ -543,20 +526,22 @@ class FeedGenerator
         $bestValue = null;
         $bestSourceLevel = -1;
 
-        foreach ($categoryIds as $categoryId) {
-            try {
-                $category = $this->categoryRepository->get((int)$categoryId, $this->storeManager->getStore()->getId());
-                $resolved = $this->resolveCategoryGoogleCategoryValue($category);
-                if ($resolved === null) {
-                    continue;
-                }
+        $storeId = $this->storeManager->getStore()->getId();
 
-                if ((int)$resolved['source_level'] >= $bestSourceLevel) {
-                    $bestSourceLevel = (int)$resolved['source_level'];
-                    $bestValue = (string)$resolved['value'];
-                }
-            } catch (\Exception $e) {
+        foreach ($categoryIds as $categoryId) {
+            $category = $this->getCategoryById($categoryId, $storeId);
+            if ($category === null) {
                 continue;
+            }
+
+            $resolved = $this->resolveCategoryGoogleCategoryValue($category);
+            if ($resolved === null) {
+                continue;
+            }
+
+            if ((int)$resolved['source_level'] >= $bestSourceLevel) {
+                $bestSourceLevel = (int)$resolved['source_level'];
+                $bestValue = (string)$resolved['value'];
             }
         }
 
@@ -580,18 +565,17 @@ class FeedGenerator
                 continue;
             }
 
-            try {
-                $pathCategory = $this->categoryRepository->get($pathCategoryId, $storeId);
-                $value = $pathCategory->getData(self::GOOGLE_CATEGORY_ATTRIBUTE_CODE);
-
-                if ($value !== null && $value !== '') {
-                    return [
-                        'value' => (string)$value,
-                        'source_level' => (int)$pathCategory->getLevel(),
-                    ];
-                }
-            } catch (\Exception $e) {
+            $pathCategory = $this->getCategoryById($pathCategoryId, $storeId);
+            if ($pathCategory === null) {
                 continue;
+            }
+
+            $value = $pathCategory->getData(self::GOOGLE_CATEGORY_ATTRIBUTE_CODE);
+            if ($value !== null && $value !== '') {
+                return [
+                    'value' => (string)$value,
+                    'source_level' => (int)$pathCategory->getLevel(),
+                ];
             }
         }
 
@@ -659,6 +643,165 @@ class FeedGenerator
         $value = $product->getData($attributeCode);
 
         return is_scalar($value) ? trim((string)$value) : '';
+    }
+
+    /**
+     * Get the final price (special price / catalog rules) without throwing on bad product types.
+     *
+     * @param \Magento\Catalog\Model\Product $product
+     * @return float
+     */
+    protected function getProductFinalPrice($product)
+    {
+        try {
+            return max(0.0, (float)$product->getFinalPrice());
+        } catch (\Exception $e) {
+            return 0.0;
+        }
+    }
+
+    /**
+     * @param \Magento\Catalog\Model\Product $product
+     * @return bool
+     */
+    protected function hasPositivePrice($product)
+    {
+        return (float)$product->getPrice() > 0 || $this->getProductFinalPrice($product) > 0;
+    }
+
+    /**
+     * Format a price for the feed, converting to the feed currency when needed.
+     *
+     * @param float $amount
+     * @param string $currency
+     * @param string $baseCurrencyCode
+     * @return string
+     */
+    protected function formatFeedPrice($amount, $currency, $baseCurrencyCode)
+    {
+        $value = $amount;
+        if ($currency !== $baseCurrencyCode) {
+            $value = $this->priceCurrency->convert($amount, null, $currency);
+        }
+
+        return number_format((float)$value, 2, '.', '') . ' ' . $currency;
+    }
+
+    /**
+     * Map a configured condition value to the Google enum: new | refurbished | used.
+     *
+     * @param mixed $value
+     * @return string|null Null when the value is empty or cannot be mapped.
+     */
+    protected function mapConditionValue($value)
+    {
+        $value = $this->normalizeEnumValue($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($this->containsAny($value, ['refurb', 'відновл', 'восстанов'])) {
+            return 'refurbished';
+        }
+
+        if ($this->containsAny($value, ['used', 'second', 'pre-owned', 'preowned', 'б/в', 'б/у', 'вживан'])) {
+            return 'used';
+        }
+
+        if ($this->containsAny($value, ['new', 'нов'])) {
+            return 'new';
+        }
+
+        return null;
+    }
+
+    /**
+     * Map a configured gender value to the Google enum: male | female | unisex.
+     *
+     * @param mixed $value
+     * @return string|null
+     */
+    protected function mapGenderValue($value)
+    {
+        $value = $this->normalizeEnumValue($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($this->containsAny($value, ['unisex', 'унісекс', 'унисекс'])) {
+            return 'unisex';
+        }
+
+        if ($this->containsAny($value, ['female', 'woman', 'women', 'girl', 'жін', 'жен', 'дівч'])) {
+            return 'female';
+        }
+
+        if ($this->containsAny($value, ['male', 'man', 'men', 'boy', 'чолов', 'муж', 'хлоп'])) {
+            return 'male';
+        }
+
+        return null;
+    }
+
+    /**
+     * Map a configured age value to the Google enum: newborn | infant | toddler | kids | adult.
+     *
+     * @param mixed $value
+     * @return string|null
+     */
+    protected function mapAgeGroupValue($value)
+    {
+        $value = $this->normalizeEnumValue($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if ($this->containsAny($value, ['newborn', 'новонародж', 'немовл'])) {
+            return 'newborn';
+        }
+
+        if ($this->containsAny($value, ['infant', 'грудн'])) {
+            return 'infant';
+        }
+
+        if ($this->containsAny($value, ['toddler'])) {
+            return 'toddler';
+        }
+
+        if ($this->containsAny($value, ['kid', 'child', 'дитя', 'діт', 'ребен', 'ребён'])) {
+            return 'kids';
+        }
+
+        if ($this->containsAny($value, ['adult', 'доросл', 'взросл'])) {
+            return 'adult';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param mixed $value
+     * @return string
+     */
+    private function normalizeEnumValue($value)
+    {
+        return is_scalar($value) ? mb_strtolower(trim((string)$value), 'UTF-8') : '';
+    }
+
+    /**
+     * @param string $haystack
+     * @param string[] $needles
+     * @return bool
+     */
+    private function containsAny($haystack, array $needles)
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && strpos($haystack, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

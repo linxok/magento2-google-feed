@@ -149,6 +149,11 @@
             </group>
             <group id="taxonomy" translate="label" type="text" sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Google Product Category Taxonomy</label>
+                <field id="import_categories" translate="label comment" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Import Taxonomy</label>
+                    <frontend_model>MyCompany\GoogleFeed\Block\Adminhtml\System\Config\Form\Field\ImportGoogleCategory</frontend_model>
+                    <comment>Download the Google Product Category taxonomy for the locale of the current scope and refresh the local table.</comment>
+                </field>
                 <field id="taxonomy_url" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Taxonomy URL Pattern</label>
                     <comment><![CDATA[URL pattern for downloading Google Product Category taxonomy. Use <strong>%s</strong> as placeholder for locale code (e.g., en-US, uk-UA). Default: https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt]]></comment>

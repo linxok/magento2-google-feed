@@ -9,7 +9,6 @@ namespace MyCompany\GoogleFeed\Controller\Adminhtml\Feed;
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\App\Action\HttpGetActionInterface;
-use Magento\Framework\App\Response\Http;
 use Magento\Framework\Controller\Result\RawFactory;
 use Magento\Store\Model\StoreManagerInterface;
 use MyCompany\GoogleFeed\Model\FeedFileManager;
@@ -28,11 +27,6 @@ class Generate extends Action implements HttpGetActionInterface
     protected $feedGenerator;
 
     /**
-     * @var Http
-     */
-    protected $response;
-
-    /**
      * @var StoreManagerInterface
      */
     protected $storeManager;
@@ -42,19 +36,16 @@ class Generate extends Action implements HttpGetActionInterface
      * @param Context $context
      * @param RawFactory $resultRawFactory
      * @param FeedGenerator $feedGenerator
-     * @param Http $response
      * @param StoreManagerInterface $storeManager
      */
     public function __construct(
         Context $context,
         RawFactory $resultRawFactory,
         FeedGenerator $feedGenerator,
-        Http $response,
         StoreManagerInterface $storeManager
     ) {
         $this->resultRawFactory = $resultRawFactory;
         $this->feedGenerator = $feedGenerator;
-        $this->response = $response;
         $this->storeManager = $storeManager;
         parent::__construct($context);
     }

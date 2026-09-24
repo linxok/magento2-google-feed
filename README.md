@@ -40,7 +40,7 @@ The module is designed for stores that need:
 
 - **Module name**: `MyCompany_GoogleFeed`
 - **Composer package**: `mycompany/magento2-google-feed`
-- **Current package version**: `1.0.3`
+- **Current package version**: `1.0.4`
 - **License**: `MIT`
 
 ## Installation
@@ -386,6 +386,20 @@ Detailed user guides are available here:
 - Ukrainian: `docs/uk/USER_GUIDE.md`
 
 ## Changelog Summary
+
+### v1.0.4
+
+- Feed prices now use the final price (special price / catalog rules) and export `g:sale_price`
+  when a product is discounted
+- `g:condition`, `g:gender`, and `g:age_group` values are mapped to the valid Google enums
+- `g:identifier_exists=no` is only exported when neither GTIN nor a brand+MPN pair is available
+- GTIN values are normalized to digits only
+- Reduced repeated database queries (single stock lookup per product, memoized category loads)
+- Taxonomy import is now atomic: a failed import no longer wipes the previously stored locale
+- Invalid `?store=` codes now return `HTTP 404` instead of serving another store's feed
+- Added a taxonomy import button to the admin configuration
+- Removed unused constructor dependencies and dead admin code
+- Declared missing Magento module dependencies in `composer.json`
 
 ### v1.0.3
 

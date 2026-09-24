@@ -10,7 +10,6 @@ use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
 use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\App\Response\Http;
 use Magento\Framework\Controller\Result\RawFactory;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
@@ -29,11 +28,6 @@ class Index extends Action implements HttpGetActionInterface
      * @var FeedGenerator
      */
     protected $feedGenerator;
-
-    /**
-     * @var Http
-     */
-    protected $response;
 
     /**
      * @var LoggerInterface
@@ -60,7 +54,6 @@ class Index extends Action implements HttpGetActionInterface
      * @param Context $context
      * @param RawFactory $resultRawFactory
      * @param FeedGenerator $feedGenerator
-     * @param Http $response
      * @param LoggerInterface $logger
      * @param ScopeConfigInterface $scopeConfig
      * @param EncryptorInterface $encryptor
@@ -70,7 +63,6 @@ class Index extends Action implements HttpGetActionInterface
         Context $context,
         RawFactory $resultRawFactory,
         FeedGenerator $feedGenerator,
-        Http $response,
         LoggerInterface $logger,
         ScopeConfigInterface $scopeConfig,
         EncryptorInterface $encryptor,
@@ -78,7 +70,6 @@ class Index extends Action implements HttpGetActionInterface
     ) {
         $this->resultRawFactory = $resultRawFactory;
         $this->feedGenerator = $feedGenerator;
-        $this->response = $response;
         $this->logger = $logger;
         $this->scopeConfig = $scopeConfig;
         $this->encryptor = $encryptor;
@@ -102,6 +93,10 @@ class Index extends Action implements HttpGetActionInterface
                 $this->storeManager->setCurrentStore($store->getId());
             } catch (\Exception $e) {
                 $this->logger->warning('Invalid store code in feed request: ' . (string)$storeCode);
+                $result->setHttpResponseCode(404);
+                $result->setHeader('Content-Type', 'text/plain; charset=UTF-8');
+                $result->setContents('Store not found');
+                return $result;
             }
         }
 

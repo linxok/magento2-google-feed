@@ -1,11 +1,16 @@
 <?php
 namespace MyCompany\GoogleFeed\Model;
 
+use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\ResourceConnection;
+use Magento\Store\Model\ScopeInterface;
 
 class GoogleCategoryStorage
 {
     const TABLE_NAME = 'mycompany_googlefeed_taxonomy';
+    const XML_PATH_FALLBACK_LOCALE = 'googlefeed/taxonomy/fallback_locale';
+    const XML_PATH_CACHE_LIFETIME = 'googlefeed/taxonomy/cache_lifetime';
+    const CACHE_KEY_PATH_MAP = 'taxonomy_path_map_';
 
     /**
      * @var array
@@ -18,16 +23,38 @@ class GoogleCategoryStorage
     private $treeCache = [];
 
     /**
+     * @var array
+     */
+    private $pathMapCache = [];
+
+    /**
      * @var ResourceConnection
      */
     private $resourceConnection;
 
     /**
-     * @param ResourceConnection $resourceConnection
+     * @var ScopeConfigInterface
      */
-    public function __construct(ResourceConnection $resourceConnection)
-    {
+    private $scopeConfig;
+
+    /**
+     * @var Cache\Type
+     */
+    private $cache;
+
+    /**
+     * @param ResourceConnection $resourceConnection
+     * @param ScopeConfigInterface $scopeConfig
+     * @param Cache\Type $cache
+     */
+    public function __construct(
+        ResourceConnection $resourceConnection,
+        ScopeConfigInterface $scopeConfig,
+        Cache\Type $cache
+    ) {
         $this->resourceConnection = $resourceConnection;
+        $this->scopeConfig = $scopeConfig;
+        $this->cache = $cache;
     }
 
     /**
@@ -43,6 +70,8 @@ class GoogleCategoryStorage
 
         $connection->delete($tableName, ['locale_code = ?' => $localeCode]);
 
+        $this->resetCaches();
+
         if (empty($rows)) {
             return;
         }
@@ -52,6 +81,20 @@ class GoogleCategoryStorage
         if (!empty($hierarchyData)) {
             $connection->insertMultiple($tableName, $hierarchyData);
         }
+    }
+
+    /**
+     * Drop in-memory and persistent caches after taxonomy changes.
+     *
+     * @return void
+     */
+    private function resetCaches()
+    {
+        $this->optionsCache = [];
+        $this->treeCache = [];
+        $this->pathMapCache = [];
+
+        $this->cache->clean();
     }
 
     /**
@@ -222,24 +265,84 @@ class GoogleCategoryStorage
             return null;
         }
 
-        $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
-        $connection = $this->resourceConnection->getConnection();
-        $candidates = $this->getLocaleCandidates($localeCode);
+        $pathMap = $this->getPathMap($localeCode);
+        if (!isset($pathMap[$googleCategoryId]) || $pathMap[$googleCategoryId] === '') {
+            return null;
+        }
 
-        foreach ($candidates as $candidateLocale) {
-            $select = $connection->select()
-                ->from($tableName, ['category_path'])
-                ->where('locale_code = ?', $candidateLocale)
-                ->where('google_category_id = ?', $googleCategoryId)
-                ->limit(1);
+        return (string)$pathMap[$googleCategoryId];
+    }
 
-            $path = $connection->fetchOne($select);
-            if ($path !== false) {
-                return (string)$path;
+    /**
+     * Load and cache the whole "google category id => path" map for the best matching locale.
+     *
+     * @param string $localeCode
+     * @return array
+     */
+    private function getPathMap($localeCode)
+    {
+        $normalizedLocale = $this->normalizeLocaleCode($localeCode);
+        if (isset($this->pathMapCache[$normalizedLocale])) {
+            return $this->pathMapCache[$normalizedLocale];
+        }
+
+        $lifetime = $this->getCacheLifetime();
+        $cacheKey = self::CACHE_KEY_PATH_MAP . $normalizedLocale;
+        if ($lifetime > 0) {
+            $cached = $this->cache->load($cacheKey);
+            if ($cached !== false) {
+                $cachedMap = json_decode((string)$cached, true);
+                if (is_array($cachedMap)) {
+                    $this->pathMapCache[$normalizedLocale] = $cachedMap;
+
+                    return $cachedMap;
+                }
             }
         }
 
-        return null;
+        $tableName = $this->resourceConnection->getTableName(self::TABLE_NAME);
+        $connection = $this->resourceConnection->getConnection();
+        $pathMap = [];
+
+        foreach ($this->getLocaleCandidates($localeCode) as $candidateLocale) {
+            $select = $connection->select()
+                ->from($tableName, ['google_category_id', 'category_path'])
+                ->where('locale_code = ?', $candidateLocale);
+
+            $rows = $connection->fetchAll($select);
+            if (empty($rows)) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                $pathMap[(int)$row['google_category_id']] = (string)$row['category_path'];
+            }
+
+            break;
+        }
+
+        $this->pathMapCache[$normalizedLocale] = $pathMap;
+
+        if ($lifetime > 0) {
+            $this->cache->save((string)json_encode($pathMap), $cacheKey, [], $lifetime);
+        }
+
+        return $pathMap;
+    }
+
+    /**
+     * Configured taxonomy cache lifetime in seconds. Zero disables caching.
+     *
+     * @return int
+     */
+    private function getCacheLifetime()
+    {
+        $hours = $this->scopeConfig->getValue(self::XML_PATH_CACHE_LIFETIME);
+        if ($hours === null || $hours === '' || (int)$hours <= 0) {
+            return 0;
+        }
+
+        return (int)$hours * 3600;
     }
 
     /**
@@ -359,15 +462,23 @@ class GoogleCategoryStorage
     }
 
     /**
+     * Build the ordered list of locales to try: exact locale, language, configured fallback.
+     *
      * @param string $localeCode
      * @return array
      */
-    private function getLocaleCandidates($localeCode)
+    public function getLocaleCandidates($localeCode)
     {
         $normalized = $this->normalizeLocaleCode($localeCode);
         $language = strtolower(substr($normalized, 0, 2));
 
-        $candidates = [$normalized, $language, 'en-US'];
+        $fallback = (string)$this->scopeConfig->getValue(
+            self::XML_PATH_FALLBACK_LOCALE,
+            ScopeInterface::SCOPE_STORE
+        );
+        $fallback = $this->normalizeLocaleCode($fallback !== '' ? $fallback : 'en-US');
+
+        $candidates = [$normalized, $language, $fallback];
 
         return array_values(array_unique($candidates));
     }

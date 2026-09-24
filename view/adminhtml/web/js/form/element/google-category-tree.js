@@ -218,32 +218,29 @@ define([
 
         _getStoreId: function () {
             var storeValue = null;
-            
+
             // Try to get store from Magento store switcher
             var storeSwitcher = $('[data-role="stores-list"]');
             if (storeSwitcher.length) {
                 storeValue = storeSwitcher.val();
-                console.log('Google Category Picker - Store from switcher:', storeValue);
             }
-            
+
             // Fallback: try URL parameters (both ID and code)
             if (!storeValue) {
                 var m = window.location.href.match(/[?&]store=([^&]+)/);
-                if (m) { 
+                if (m) {
                     storeValue = m[1];
-                    console.log('Google Category Picker - Store from URL:', storeValue);
                 }
             }
-            
+
             // Fallback: try store_id input field (category form)
             if (!storeValue) {
                 var storeInput = $('input[name="store_id"]');
                 if (storeInput.length && storeInput.val()) {
                     storeValue = storeInput.val();
-                    console.log('Google Category Picker - Store from input:', storeValue);
                 }
             }
-            
+
             // Return the value (can be ID or code - server will handle both)
             return storeValue || 0;
         }

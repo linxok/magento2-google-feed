@@ -5,7 +5,7 @@ use Magento\Config\Block\System\Config\Form\Field;
 use Magento\Framework\Data\Form\Element\AbstractElement;
 use Magento\Framework\Filesystem;
 use Magento\Framework\App\Filesystem\DirectoryList;
-use Magento\Store\Model\StoreManagerInterface;
+use MyCompany\GoogleFeed\Model\StoreUrlResolver;
 
 class GeneratedFiles extends Field
 {
@@ -15,24 +15,24 @@ class GeneratedFiles extends Field
     protected $filesystem;
 
     /**
-     * @var StoreManagerInterface
+     * @var StoreUrlResolver
      */
-    protected $storeManager;
+    protected $storeUrlResolver;
 
     /**
      * @param \Magento\Backend\Block\Template\Context $context
      * @param Filesystem $filesystem
-     * @param StoreManagerInterface $storeManager
+     * @param StoreUrlResolver $storeUrlResolver
      * @param array $data
      */
     public function __construct(
         \Magento\Backend\Block\Template\Context $context,
         Filesystem $filesystem,
-        StoreManagerInterface $storeManager,
+        StoreUrlResolver $storeUrlResolver,
         array $data = []
     ) {
         $this->filesystem = $filesystem;
-        $this->storeManager = $storeManager;
+        $this->storeUrlResolver = $storeUrlResolver;
         parent::__construct($context, $data);
     }
 
@@ -115,7 +115,7 @@ class GeneratedFiles extends Field
                         'path' => $filePath,
                         'size' => $stat['size'],
                         'modified' => $stat['mtime'],
-                        'url' => $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA) . $filePath
+                        'url' => rtrim($this->storeUrlResolver->getMediaBaseUrl(), '/') . '/' . $filePath
                     ];
                 }
             }

@@ -7,7 +7,6 @@
 namespace MyCompany\GoogleFeed\Model;
 
 use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
-use Magento\Catalog\Helper\Image;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\ScopeInterface;
@@ -28,11 +27,6 @@ class FeedGenerator
      * @var CollectionFactory
      */
     protected $productCollectionFactory;
-
-    /**
-     * @var Image
-     */
-    protected $imageHelper;
 
     /**
      * @var StoreManagerInterface
@@ -80,9 +74,13 @@ class FeedGenerator
     protected $googleCategoryStorage;
 
     /**
+     * @var StoreUrlResolver
+     */
+    protected $storeUrlResolver;
+
+    /**
      * FeedGenerator constructor.
      * @param CollectionFactory $productCollectionFactory
-     * @param Image $imageHelper
      * @param StoreManagerInterface $storeManager
      * @param ScopeConfigInterface $scopeConfig
      * @param PriceCurrencyInterface $priceCurrency
@@ -91,11 +89,11 @@ class FeedGenerator
      * @param CategoryRepositoryInterface $categoryRepository
      * @param SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory
      * @param GoogleCategoryStorage $googleCategoryStorage
+     * @param StoreUrlResolver $storeUrlResolver
      * @param LoggerInterface $logger
      */
     public function __construct(
         CollectionFactory            $productCollectionFactory,
-        Image                        $imageHelper,
         StoreManagerInterface        $storeManager,
         ScopeConfigInterface         $scopeConfig,
         PriceCurrencyInterface       $priceCurrency,
@@ -104,11 +102,11 @@ class FeedGenerator
         CategoryRepositoryInterface  $categoryRepository,
         SearchCriteriaBuilderFactory $searchCriteriaBuilderFactory,
         GoogleCategoryStorage        $googleCategoryStorage,
+        StoreUrlResolver             $storeUrlResolver,
         LoggerInterface              $logger
     )
     {
         $this->productCollectionFactory = $productCollectionFactory;
-        $this->imageHelper = $imageHelper;
         $this->storeManager = $storeManager;
         $this->scopeConfig = $scopeConfig;
         $this->priceCurrency = $priceCurrency;
@@ -117,6 +115,7 @@ class FeedGenerator
         $this->categoryRepository = $categoryRepository;
         $this->searchCriteriaBuilderFactory = $searchCriteriaBuilderFactory;
         $this->googleCategoryStorage = $googleCategoryStorage;
+        $this->storeUrlResolver = $storeUrlResolver;
         $this->logger = $logger;
     }
 
@@ -139,7 +138,7 @@ class FeedGenerator
 
         // Channel information
         $xml->writeElement('title', $this->getConfigValue('googlefeed/general/title'));
-        $xml->writeElement('link', $this->getNormalizedStoreBaseUrl());
+        $xml->writeElement('link', $this->storeUrlResolver->getStoreBaseUrl());
         $xml->writeElement('description', $this->getConfigValue('googlefeed/general/description'));
 
         // Add products
@@ -210,38 +209,19 @@ class FeedGenerator
             ]
         ]);
 
-        // Category filters - Include specific categories
-        $includeCategories = $this->getConfigValue('googlefeed/filters/category_ids');
-
-        // If category filter is not configured at all (null), don't show any products by default
-        // This prevents accidentally exporting entire catalog before configuration
-        if ($includeCategories === null) {
+        // Category filters - Include specific categories.
+        // Empty selection intentionally exports no products to prevent accidental full catalog export.
+        $includeCategoryIds = $this->parseCategoryIds($this->getConfigValue('googlefeed/filters/category_ids'));
+        if (empty($includeCategoryIds)) {
             $collection->addCategoriesFilter(['in' => [0]]);
         } else {
-            $trimmedValue = trim((string)$includeCategories);
-
-            if ($trimmedValue !== '') {
-                // Parse category IDs
-                $categoryIds = array_filter(array_map('trim', explode(',', $trimmedValue)));
-                if (!empty($categoryIds)) {
-                    $collection->addCategoriesFilter(['in' => $categoryIds]);
-                } else {
-                    // Field contains only commas/whitespace - no products
-                    $collection->addCategoriesFilter(['in' => [0]]);
-                }
-            } else {
-                // Field is explicitly empty (all categories unchecked) - no products
-                $collection->addCategoriesFilter(['in' => [0]]);
-            }
+            $collection->addCategoriesFilter(['in' => $includeCategoryIds]);
         }
 
         // Category filters - Exclude specific categories
-        $excludeCategories = $this->getConfigValue('googlefeed/filters/exclude_categories');
-        if ($excludeCategories && trim($excludeCategories) !== '') {
-            $categoryIds = array_filter(array_map('trim', explode(',', $excludeCategories)));
-            if (!empty($categoryIds)) {
-                $collection->addCategoriesFilter(['nin' => $categoryIds]);
-            }
+        $excludeCategoryIds = $this->parseCategoryIds($this->getConfigValue('googlefeed/filters/exclude_categories'));
+        if (!empty($excludeCategoryIds)) {
+            $collection->addCategoriesFilter(['nin' => $excludeCategoryIds]);
         }
 
         // Price filters
@@ -275,8 +255,37 @@ class FeedGenerator
      */
     protected function addProductToFeed(\XMLWriter $xml, $product)
     {
+        $basePrice = $product->getPrice();
+        if ($basePrice === null || $basePrice === '') {
+            $this->logger->warning('Product ' . $product->getSku() . ' has no price set, skipping');
+            return;
+        }
+
         $xml->startElement('item');
 
+        try {
+            $this->writeItemContent($xml, $product, $basePrice);
+        } catch (\Exception $e) {
+            $this->logger->error(sprintf(
+                'Google Feed: error building feed item for product "%s": %s',
+                $product->getSku(),
+                $e->getMessage()
+            ));
+        } finally {
+            $xml->endElement(); // item
+        }
+    }
+
+    /**
+     * Write feed item content. The item element is already open.
+     *
+     * @param \XMLWriter $xml
+     * @param \Magento\Catalog\Model\Product $product
+     * @param float|string $basePrice
+     * @return void
+     */
+    protected function writeItemContent(\XMLWriter $xml, $product, $basePrice)
+    {
         // Basic product information - XMLWriter automatically escapes content
         $xml->writeElement('g:id', $this->sanitizeXmlValue($product->getSku()));
         $xml->writeElement('g:title', $this->sanitizeXmlValue($product->getName()));
@@ -285,44 +294,34 @@ class FeedGenerator
         $xml->writeElement('g:link', $this->sanitizeUrl($this->getProductFeedUrl($product)));
 
         // Image
-        $imageUrl = $this->getProductImageUrl($product);
+        $imageUrl = $this->sanitizeUrl($this->getProductImageUrl($product));
         if ($imageUrl !== '') {
-            $xml->writeElement('g:image_link', $this->sanitizeUrl($imageUrl));
+            $xml->writeElement('g:image_link', $imageUrl);
         }
 
         // Additional images
         $mediaGallery = $product->getMediaGalleryImages();
         if ($mediaGallery && $mediaGallery->getSize() > 1) {
-            $additionalImages = [];
-            $imageSize = $this->getConfigValue('googlefeed/feed/image_size');
             $count = 0;
             foreach ($mediaGallery as $image) {
                 // Skip the main image and limit to 10 additional images (Google limit)
-                if ($image->getFile() !== $product->getImage() && $count < 10) {
-                    $additionalImageUrl = $this->storeManager->getStore()
-                            ->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA)
-                        . 'catalog/product' . $image->getFile();
-                    $additionalImages[] = $this->sanitizeUrl($additionalImageUrl);
-                    $count++;
+                if ($image->getFile() === $product->getImage() || $count >= 10) {
+                    continue;
                 }
-            }
-            if (!empty($additionalImages)) {
-                foreach ($additionalImages as $additionalImage) {
-                    $xml->writeElement('g:additional_image_link', $additionalImage);
+
+                $additionalImageUrl = $this->sanitizeUrl(
+                    $this->getProductImageUrl($product, (string)$image->getFile())
+                );
+                if ($additionalImageUrl !== '') {
+                    $xml->writeElement('g:additional_image_link', $additionalImageUrl);
+                    $count++;
                 }
             }
         }
 
         // Price
-        $basePrice = $product->getPrice();
         $configCurrency = $this->getConfigValue('googlefeed/feed/currency');
         $currency = $configCurrency ?: $this->storeManager->getStore()->getCurrentCurrency()->getCode();
-
-        // Skip product if price is not set
-        if ($basePrice === null || $basePrice === '') {
-            $this->logger->warning('Product ' . $product->getSku() . ' has no price set, skipping');
-            return;
-        }
 
         // Convert price to feed currency if different from base currency
         $baseCurrencyCode = $this->storeManager->getStore()->getBaseCurrencyCode();
@@ -487,8 +486,6 @@ class FeedGenerator
                 $xml->writeElement('g:age_group', $this->sanitizeXmlValue(strtolower($product->getData($ageGroupAttribute))));
             }
         }
-
-        $xml->endElement(); // item
     }
 
     /**
@@ -692,98 +689,53 @@ class FeedGenerator
     }
 
     /**
+     * Parse a comma separated list of category IDs.
+     *
+     * @param mixed $value
+     * @return array
+     */
+    protected function parseCategoryIds($value)
+    {
+        if ($value === null || !is_scalar($value)) {
+            return [];
+        }
+
+        $categoryIds = [];
+        foreach (explode(',', (string)$value) as $categoryId) {
+            $categoryId = trim($categoryId);
+            if ($categoryId !== '' && ctype_digit($categoryId)) {
+                $categoryIds[] = (int)$categoryId;
+            }
+        }
+
+        return array_values(array_unique($categoryIds));
+    }
+
+    /**
      * @param \Magento\Catalog\Model\Product $product
      * @return string
      */
     protected function getProductFeedUrl($product)
     {
-        $urlPath = trim((string)$product->getData('url_path'), '/');
-        if ($urlPath === '') {
-            $urlPath = ltrim((string)$product->getUrlKey(), '/');
-            if ($urlPath !== '') {
-                $urlPath .= '.html';
-            }
-        }
-
-        if ($urlPath === '') {
-            return (string)$product->getProductUrl();
-        }
-
-        return rtrim($this->getNormalizedStoreBaseUrl(), '/') . '/' . $urlPath;
+        return $this->storeUrlResolver->getProductUrl($product);
     }
 
     /**
+     * Get original image URL. Images are not resized during feed generation on purpose:
+     * the catalog image helper would synchronously generate cache files for every image.
+     *
      * @param \Magento\Catalog\Model\Product $product
+     * @param string|null $imageFile
      * @return string
      */
-    protected function getProductImageUrl($product)
+    protected function getProductImageUrl($product, $imageFile = null)
     {
-        $imageFile = (string)$product->getImage();
+        $imageFile = $imageFile !== null ? (string)$imageFile : (string)$product->getImage();
         if ($imageFile === '' || $imageFile === 'no_selection') {
             return '';
         }
 
-        return rtrim(
-                $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA),
-                '/'
-            ) . '/catalog/product' . $imageFile;
-    }
-
-    /**
-     * @return string
-     */
-    protected function getNormalizedStoreBaseUrl()
-    {
-        $store = $this->storeManager->getStore();
-        $baseUrl = (string)$store->getBaseUrl();
-        $storeCode = trim((string)$store->getCode(), '/');
-
-        if ($storeCode === '') {
-            return rtrim($baseUrl, '/') . '/';
-        }
-
-        $parts = parse_url($baseUrl);
-        if ($parts === false || empty($parts['host'])) {
-            return rtrim($baseUrl, '/') . '/';
-        }
-
-        $host = $parts['host'];
-        $path = isset($parts['path']) ? trim((string)$parts['path'], '/') : '';
-
-        if ($path === '') {
-            $hostSuffix = substr($host, -strlen($storeCode));
-            if ($hostSuffix === $storeCode && strlen($host) > strlen($storeCode)) {
-                $normalizedHost = substr($host, 0, -strlen($storeCode));
-                if ($normalizedHost !== '') {
-                    $host = $normalizedHost;
-                }
-            }
-
-            $path = $storeCode;
-        }
-
-        $normalizedUrl = '';
-        if (!empty($parts['scheme'])) {
-            $normalizedUrl .= $parts['scheme'] . '://';
-        }
-
-        if (!empty($parts['user'])) {
-            $normalizedUrl .= $parts['user'];
-            if (!empty($parts['pass'])) {
-                $normalizedUrl .= ':' . $parts['pass'];
-            }
-            $normalizedUrl .= '@';
-        }
-
-        $normalizedUrl .= $host;
-
-        if (!empty($parts['port'])) {
-            $normalizedUrl .= ':' . $parts['port'];
-        }
-
-        $normalizedUrl .= '/' . trim($path, '/') . '/';
-
-        return $normalizedUrl;
+        return $this->storeUrlResolver->getImageUrl($imageFile);
     }
 
     /**

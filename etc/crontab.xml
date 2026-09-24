@@ -2,7 +2,7 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
     <group id="default">
         <job name="mycompany_googlefeed_generate" instance="MyCompany\GoogleFeed\Cron\GenerateFeed" method="execute">
-            <schedule>0 2 * * *</schedule>
+            <schedule>*/5 * * * *</schedule>
         </job>
     </group>
 </config>

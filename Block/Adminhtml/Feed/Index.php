@@ -1,11 +1,17 @@
 <?php
+/**
+ * Copyright © Magento, Inc. All rights reserved.
+ * See COPYING.txt for license details.
+ */
+
 namespace MyCompany\GoogleFeed\Block\Adminhtml\Feed;
 
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
-use Magento\Store\Model\StoreManagerInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Store\Model\ScopeInterface;
+use Magento\Store\Model\StoreManagerInterface;
+use MyCompany\GoogleFeed\Model\StoreUrlResolver;
 
 class Index extends Template
 {
@@ -20,19 +26,27 @@ class Index extends Template
     protected $scopeConfig;
 
     /**
+     * @var StoreUrlResolver
+     */
+    protected $storeUrlResolver;
+
+    /**
      * @param Context $context
      * @param StoreManagerInterface $storeManager
      * @param ScopeConfigInterface $scopeConfig
+     * @param StoreUrlResolver $storeUrlResolver
      * @param array $data
      */
     public function __construct(
         Context $context,
         StoreManagerInterface $storeManager,
         ScopeConfigInterface $scopeConfig,
+        StoreUrlResolver $storeUrlResolver,
         array $data = []
     ) {
         $this->storeManager = $storeManager;
         $this->scopeConfig = $scopeConfig;
+        $this->storeUrlResolver = $storeUrlResolver;
         parent::__construct($context, $data);
     }
 
@@ -51,8 +65,12 @@ class Index extends Template
                     'name' => $store->getName(),
                     'code' => $store->getCode(),
                     'website' => $this->storeManager->getWebsite($store->getWebsiteId())->getName(),
-                    'enabled' => $this->scopeConfig->isSetFlag('googlefeed/general/enabled', ScopeInterface::SCOPE_STORE, $store->getId()),
-                    'url' => rtrim($this->getNormalizedStoreBaseUrl($store), '/') . '/googlefeed/feed/index?store=' . rawurlencode($store->getCode()),
+                    'enabled' => $this->scopeConfig->isSetFlag(
+                        'googlefeed/general/enabled',
+                        ScopeInterface::SCOPE_STORE,
+                        $store->getId()
+                    ),
+                    'url' => $this->storeUrlResolver->getFeedUrl($store),
                     'download_url' => $this->getUrl('googlefeed/feed/generate', ['store_id' => $store->getId()])
                 ];
             }
@@ -69,7 +87,7 @@ class Index extends Template
     {
         return $this->getUrl('googlefeed/feed/generate');
     }
-    
+
     /**
      * Get generate URL for specific store
      *
@@ -99,62 +117,5 @@ class Index extends Template
     public function getConfigUrl()
     {
         return $this->getUrl('adminhtml/system_config/edit', ['section' => 'googlefeed']);
-    }
-
-    /**
-     * @param \Magento\Store\Api\Data\StoreInterface|\Magento\Store\Model\Store $store
-     * @return string
-     */
-    protected function getNormalizedStoreBaseUrl($store)
-    {
-        $baseUrl = (string)$store->getBaseUrl();
-        $storeCode = trim((string)$store->getCode(), '/');
-
-        if ($storeCode === '') {
-            return rtrim($baseUrl, '/') . '/';
-        }
-
-        $parts = parse_url($baseUrl);
-        if ($parts === false || empty($parts['host'])) {
-            return rtrim($baseUrl, '/') . '/';
-        }
-
-        $host = $parts['host'];
-        $path = isset($parts['path']) ? trim((string)$parts['path'], '/') : '';
-
-        if ($path === '') {
-            $hostSuffix = substr($host, -strlen($storeCode));
-            if ($hostSuffix === $storeCode && strlen($host) > strlen($storeCode)) {
-                $normalizedHost = substr($host, 0, -strlen($storeCode));
-                if ($normalizedHost !== '') {
-                    $host = $normalizedHost;
-                }
-            }
-
-            $path = $storeCode;
-        }
-
-        $normalizedUrl = '';
-        if (!empty($parts['scheme'])) {
-            $normalizedUrl .= $parts['scheme'] . '://';
-        }
-
-        if (!empty($parts['user'])) {
-            $normalizedUrl .= $parts['user'];
-            if (!empty($parts['pass'])) {
-                $normalizedUrl .= ':' . $parts['pass'];
-            }
-            $normalizedUrl .= '@';
-        }
-
-        $normalizedUrl .= $host;
-
-        if (!empty($parts['port'])) {
-            $normalizedUrl .= ':' . $parts['port'];
-        }
-
-        $normalizedUrl .= '/' . trim($path, '/') . '/';
-
-        return $normalizedUrl;
     }
 }

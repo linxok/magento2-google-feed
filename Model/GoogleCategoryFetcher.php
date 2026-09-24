@@ -12,7 +12,6 @@ class GoogleCategoryFetcher
     const TAXONOMY_URL_PATTERN = 'https://www.google.com/basepages/producttype/taxonomy-with-ids.%s.txt';
     const XML_PATH_TAXONOMY_URL = 'googlefeed/taxonomy/taxonomy_url';
     const XML_PATH_CUSTOM_URLS = 'googlefeed/taxonomy/custom_taxonomy_urls';
-    const XML_PATH_FALLBACK_LOCALE = 'googlefeed/taxonomy/fallback_locale';
 
     /**
      * @var Curl
@@ -65,7 +64,7 @@ class GoogleCategoryFetcher
     public function fetch($localeCode)
     {
         $normalizedLocale = $this->googleCategoryStorage->normalizeLocaleCode($localeCode);
-        $candidates = $this->getLocaleCandidates($normalizedLocale);
+        $candidates = $this->googleCategoryStorage->getLocaleCandidates($normalizedLocale);
         
         $this->logger->info(sprintf(
             'GoogleCategoryFetcher: Starting fetch for locale "%s". Will try %d candidate(s): %s',
@@ -141,7 +140,9 @@ class GoogleCategoryFetcher
         $this->logger->error(sprintf(
             'GoogleCategoryFetcher: All attempts failed for locale "%s". Tried URLs: %s',
             $normalizedLocale,
-            implode(', ', array_map(function($c) { return sprintf(self::TAXONOMY_URL_PATTERN, $c); }, $candidates))
+            implode(', ', array_map(function ($candidate) {
+                return $this->getTaxonomyUrl($candidate);
+            }, $candidates))
         ));
 
         throw new LocalizedException(__('Unable to download Google Product Category taxonomy.'));
@@ -173,22 +174,6 @@ class GoogleCategoryFetcher
         }
 
         return $rows;
-    }
-
-    /**
-     * @param string $localeCode
-     * @return array
-     */
-    private function getLocaleCandidates($localeCode)
-    {
-        $language = strtolower(substr($localeCode, 0, 2));
-        $candidates = [
-            $localeCode,
-            $language,
-            'en-US',
-        ];
-
-        return array_values(array_unique($candidates));
     }
 
     /**

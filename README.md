@@ -34,7 +34,7 @@ The module is designed for stores that need:
 ## Requirements
 
 - Magento 2.4.x
-- PHP 7.4, 8.0, 8.1, or 8.2
+- PHP 7.4, 8.0, 8.1, 8.2, or 8.3
 
 ## Package Information
 
@@ -66,6 +66,27 @@ php bin/magento setup:upgrade
 php bin/magento setup:di:compile
 php bin/magento cache:flush
 ```
+
+### Updating an existing installation
+
+The upgrade changes constructor dependencies and the cron schedule, so always run the
+full sequence after deploying new module code (production mode needs a DI recompile):
+
+```bash
+php bin/magento setup:upgrade
+php bin/magento setup:di:compile
+php bin/magento cache:flush
+```
+
+Notes:
+
+- The cron schedule is stored in the configuration cache; after `cache:flush` the job runs
+  on the new 5-minute schedule. On the first tick it may generate a feed immediately
+  (catch-up run) even if `Generation Time` is later.
+- Disabling `Enable Google Feed` makes the public feed URL return `HTTP 404`. Verify the
+  flag per store scope before disabling it for a feed already consumed by Google Merchant Center.
+- `Image Size` was removed because resizing every image during a feed request is not safe
+  for a live endpoint; feeds now reference the original catalog images.
 
 ## Quick Start
 
@@ -159,8 +180,6 @@ Configuration path:
   - Maximum number of exported products
 - **Include Out of Stock Products**
   - Includes out-of-stock items when enabled
-- **Image Size**
-  - Main product image size in pixels
 - **Feed Currency**
   - Uses configured currency or store default when empty
 - **Default Product Condition**
@@ -199,7 +218,7 @@ Configuration path:
 - **Fallback Locale**
   - Used when no taxonomy is available for the store locale
 - **Cache Lifetime (hours)**
-  - Controls taxonomy download caching
+  - Controls caching of taxonomy lookups (the imported taxonomy is re-used for this many hours; `0` disables caching)
 
 ### Automatic Generation (Cron)
 
@@ -208,6 +227,12 @@ Configuration path:
 - **Generation Time**
 - **Generate Feeds for Stores**
 - **Generated Feed Files**
+
+The cron job is registered with a 5-minute schedule and decides internally whether the
+configured frequency and time are due, so changing `Generation Frequency` or
+`Generation Time` takes effect without editing `crontab.xml`. If a scheduled run was
+missed (for example during maintenance), it is executed on the next cron tick.
+`Generation Time` is evaluated in the server timezone used by Magento cron (UTC by default).
 
 ## Google Product Category Mapping
 
@@ -223,10 +248,9 @@ The module supports Google Product Category assignment at category level and res
 
 ### Resolution priority
 
-1. Product attribute `mycompany_google_product_category`
-2. Direct category assignment
-3. Parent category assignment
-4. No value exported
+1. Direct assignment on one of the product categories
+2. Nearest parent category with an assigned value (inheritance up to the store root category)
+3. No value exported when nothing is assigned
 
 ### Taxonomy storage
 
@@ -324,6 +348,12 @@ If you enable feed authentication, make sure your Google Merchant Center ingesti
 - Verify `Include Categories` contains at least one category
 - Check price filters
 - Check stock settings
+
+### Feed returns HTTP 404
+
+- `Enable Google Feed` is disabled for the requested store scope
+- Re-enable it in `Stores -> Configuration -> MyCompany -> Google Feed`, or check the store code in `?store=`
+- A rejected request is logged as "Google Feed request rejected: feed is disabled for store ..."
 
 ### Feed opens with wrong store data
 

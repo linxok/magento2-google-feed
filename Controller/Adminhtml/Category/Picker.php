@@ -71,12 +71,6 @@ class Picker extends Action implements HttpGetActionInterface
             $storeId
         );
 
-        // Debug logging
-        $writer = new \Zend_Log_Writer_Stream(BP . '/var/log/googlefeed_picker.log');
-        $logger = new \Zend_Log();
-        $logger->addWriter($writer);
-        $logger->info('Picker Debug - Store Param: ' . $storeParam . ', Store ID: ' . $storeId . ', Locale: ' . $locale . ', Selected: ' . $selectedId);
-
         $tree = $this->googleCategoryStorage->getTreeByLocale($locale ?: 'en_US');
 
         $result = $this->rawFactory->create();

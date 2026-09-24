@@ -16,7 +16,6 @@
             <feed>
                 <limit>1000</limit>
                 <include_out_of_stock>0</include_out_of_stock>
-                <image_size>800</image_size>
                 <currency></currency>
                 <condition>new</condition>
             </feed>

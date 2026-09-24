@@ -8,11 +8,14 @@ namespace MyCompany\GoogleFeed\Controller\Adminhtml\Feed;
 
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
-use Magento\Framework\Controller\Result\RawFactory;
+use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Framework\App\Response\Http;
+use Magento\Framework\Controller\Result\RawFactory;
+use Magento\Store\Model\StoreManagerInterface;
+use MyCompany\GoogleFeed\Model\FeedFileManager;
 use MyCompany\GoogleFeed\Model\FeedGenerator;
 
-class Generate extends Action implements \Magento\Framework\App\Action\HttpGetActionInterface
+class Generate extends Action implements HttpGetActionInterface
 {
     /**
      * @var RawFactory
@@ -30,21 +33,29 @@ class Generate extends Action implements \Magento\Framework\App\Action\HttpGetAc
     protected $response;
 
     /**
+     * @var StoreManagerInterface
+     */
+    protected $storeManager;
+
+    /**
      * Generate constructor.
      * @param Context $context
      * @param RawFactory $resultRawFactory
      * @param FeedGenerator $feedGenerator
      * @param Http $response
+     * @param StoreManagerInterface $storeManager
      */
     public function __construct(
         Context $context,
         RawFactory $resultRawFactory,
         FeedGenerator $feedGenerator,
-        Http $response
+        Http $response,
+        StoreManagerInterface $storeManager
     ) {
         $this->resultRawFactory = $resultRawFactory;
         $this->feedGenerator = $feedGenerator;
         $this->response = $response;
+        $this->storeManager = $storeManager;
         parent::__construct($context);
     }
 
@@ -64,30 +75,32 @@ class Generate extends Action implements \Magento\Framework\App\Action\HttpGetAc
     public function execute()
     {
         $result = $this->resultRawFactory->create();
-        
+
         try {
             $storeId = $this->getRequest()->getParam('store_id');
-            
+
             if ($storeId) {
                 // Generate feed for specific store
-                $store = $this->_objectManager->get(\Magento\Store\Model\StoreManagerInterface::class)->getStore($storeId);
-                $currentStore = $this->_objectManager->get(\Magento\Store\Model\StoreManagerInterface::class)->getStore();
-                
+                $store = $this->storeManager->getStore($storeId);
+                $currentStoreId = (int)$this->storeManager->getStore()->getId();
+
                 // Switch to requested store
-                $this->_objectManager->get(\Magento\Store\Model\StoreManagerInterface::class)->setCurrentStore($storeId);
-                
-                $feedContent = $this->feedGenerator->generateFeed();
-                
-                // Restore original store
-                $this->_objectManager->get(\Magento\Store\Model\StoreManagerInterface::class)->setCurrentStore($currentStore->getId());
-                
-                $filename = 'google_feed_' . $store->getCode() . '.xml';
+                $this->storeManager->setCurrentStore($store->getId());
+
+                try {
+                    $feedContent = $this->feedGenerator->generateFeed();
+                } finally {
+                    // Restore original store
+                    $this->storeManager->setCurrentStore($currentStoreId);
+                }
+
+                $filename = 'google_feed_' . FeedFileManager::sanitizeFilePart($store->getCode()) . '.xml';
             } else {
                 // Generate feed for current store
                 $feedContent = $this->feedGenerator->generateFeed();
                 $filename = 'google_feed.xml';
             }
-            
+
             $result->setHeader('Content-Type', 'application/xml');
             $result->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
             $result->setContents($feedContent);

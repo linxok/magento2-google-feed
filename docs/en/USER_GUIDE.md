@@ -93,7 +93,6 @@ Navigate to: **Stores → Configuration → MyCompany → Google Feed**
 |---|---|---|
 | Products Limit | Maximum number of products per feed | 1000 |
 | Include Out of Stock | Whether to include out-of-stock products | No |
-| Image Size | Product image size in pixels | 800 |
 | Currency | Feed currency (empty = store default) | — |
 | Default Product Condition | `new` / `refurbished` / `used` | new |
 
@@ -134,13 +133,11 @@ After running `import-taxonomy`, categories are stored in the database table `my
 The module automatically resolves which Google Product Category to use for each product using this priority:
 
 ```
-1. Product attribute `mycompany_google_product_category`
+1. Google Product Category assigned directly to a product category
         ↓ (if not set)
-2. Product category Google Product Category
-        ↓ (if not set)
-3. Parent category → ... → Root category
+2. Parent category → ... → Root category
         ↓ (if nothing found)
-4. Field omitted from feed
+3. Field omitted from feed
 ```
 
 **Example:**
@@ -150,7 +147,7 @@ Electronics [Google Category: 222 — Electronics]
   └─ Phones [Google Category: 267 — Mobile Phones]
       └─ Smartphones [No assignment → inherits 267]
           └─ Product A [No assignment → inherits 267]
-          └─ Product B [Product attribute set → uses own value]
+          └─ Product B [No assignment → inherits 267]
 ```
 
 ---
